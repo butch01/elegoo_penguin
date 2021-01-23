@@ -1,0 +1,26 @@
+/*
+ * globalDefines.h
+ *
+ *  Created on: 19.01.2021
+ *      Author: butch
+ */
+
+#ifndef GLOBALDEFINES_H_
+#define GLOBALDEFINES_H_
+
+#define DEBUG_SERIAL_NAME Serial
+#define DEBUG_SERIAL_BAUD 19200
+
+
+// define logging options
+
+#define DEBUG_CALCULATE_MOVE_ITERATION_ID 1
+
+#define DEBUG_SERVO_KEYFRAME_ANIMATOR_GROUP_CALCULATE_SERVO_POSITIONS 1
+
+
+#define DEBUG_SERVO_KEYFRAME_ANIMATOR_GET_CALCULATED_SERVO_POSITION 1
+
+
+
+#endif /* GLOBALDEFINES_H_ */

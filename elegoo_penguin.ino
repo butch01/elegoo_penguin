@@ -1,10 +1,15 @@
 #include "Arduino.h"
-#include "Oscillator.h"
+// #include "Oscillator.h"
 #include <Servo.h>
-#include "NeoSWSerial.h"
+#include <NeoSWSerial.h>
 #include "MsTimer2.h"
 #include <EEPROM.h>
 #include <FastCRC.h>
+#include "globalDefines.h"
+#include "ServoKeyframeAnimatorGroup.h"
+#include <ArduinoLog.h>
+#include <EnhancedServo.h>
+
 
 
 unsigned long packageNumber=0;
@@ -14,11 +19,22 @@ unsigned long packageNumber=0;
 #define RUNMODE 1
 // vars for test mode
 
-unsigned int duration =3000;
-unsigned char key0=20;
-unsigned char key1=160;
-unsigned char sweepDirection=0;
-unsigned char currentServoPos=key0;
+
+
+
+
+ServoKeyframeAnimatorGroup keyframeServoGroupLegs(4);
+//ServoKeyframeAnimatorGroup keyframeServoGroupLegs;
+
+#define NUMBER_OF_SERVOGROUPS 1
+#define NUMBER_OF_SERVOGROUP_LEGS_SERVOS 4
+#define SERVO_GROUP_LEGS 0
+// #define SERVO_GROUP_ARMS 1
+
+signed char servoGroupMoveIteration[NUMBER_OF_SERVOGROUPS];
+signed char servoGroupMoveIterationDirection[NUMBER_OF_SERVOGROUPS];
+EnhancedServo servoGroupLegs[NUMBER_OF_SERVOGROUP_LEGS_SERVOS];
+
 
 /* Serial Bluetooth Communication Control Command Data Frame*/
 
@@ -66,10 +82,10 @@ RR 0==^   -----   ------  v== RL 1
 */
 
 /* fine-tuning temporary storage variables*/
-int trim_rr;
-int trim_rl;
-int trim_yr;
-int trim_yl;
+signed char trim_rr;
+signed char trim_rl;
+signed char trim_yr;
+signed char trim_yl;
 
 int addr_trim_rr = 0;
 int addr_trim_rl = 1;
@@ -89,7 +105,7 @@ NeoSWSerial BLE_SERIAL_NAME(BLE_SERIAL_RX, BLE_SERIAL_TX);
 
 // movement
 unsigned long timePrevKey=0; // time when the move started
-bool isInMove=false; // if we are currently in a move
+//bool isInMove=false; // if we are currently in a move
 
 // Protocol definition
 #define PROT_ARRAY_LENGTH 17
@@ -136,8 +152,6 @@ FastCRC8 CRC8;
 NeoSWSerial mp3Serial(AUDIO_SOFTWARE_RX, AUDIO_SOFTWARE_TX);
 
 
-#define DEBUG_SERIAL_NAME Serial
-#define DEBUG_SERIAL_BAUD 57600
 
 #define YL_PIN 10
 #define YR_PIN 9
@@ -191,7 +205,7 @@ long int ST188LeftDataMin;
 int UltraThresholdMin = 7;
 int UltraThresholdMax = 20;
 //Oscillator servo[4];
-Oscillator servo[4];
+
 
 enum MODE
 {
@@ -356,28 +370,28 @@ private:
     byte CMD_SongSelet[7] = {0x7E, 0x05, 0x41, 0x00, 0x00, 0x00, 0xEF};
     byte CMD_getPlayStatus[5] = {0x7E, 0x03, 0x20, 0x23, 0xEF};
 } mp3;
-
-bool oscillate(int A[4], int O[4], int T, double phase_diff[4])
-{
-    for (int i = 0; i < 4; i++)
-    {
-        servo[i].SetO(O[i]);
-        servo[i].SetA(A[i]);
-        servo[i].SetT(T);
-        servo[i].SetPh(phase_diff[i]);
-    }
-    double ref = millis();
-    for (double x = ref; x < T + ref; x = millis())
-    {
-        for (int i = 0; i < 4; i++)
-        {
-            servo[i].refresh();
-        }
-        if (irValue)
-            return true;
-    }
-    return false;
-}
+//
+//bool oscillate(int A[4], int O[4], int T, double phase_diff[4])
+//{
+//    for (int i = 0; i < 4; i++)
+//    {
+//        servo[i].SetO(O[i]);
+//        servo[i].SetA(A[i]);
+//        servo[i].SetT(T);
+//        servo[i].SetPh(phase_diff[i]);
+//    }
+//    double ref = millis();
+//    for (double x = ref; x < T + ref; x = millis())
+//    {
+//        for (int i = 0; i < 4; i++)
+//        {
+//            servo[i].refresh();
+//        }
+//        if (irValue)
+//            return true;
+//    }
+//    return false;
+//}
 
 unsigned long final_time;
 unsigned long interval_time;
@@ -386,965 +400,970 @@ int iteration;
 float increment[4];
 int oldPosition[] = {CENTRE, CENTRE, CENTRE, CENTRE};
 
-bool home()
-{
-    int move1[] = {90, 90, 90, 90};
-    if (moveNServos(t, move1) || delays(t))
-        return true;
-    return false;
-}
+
 
 /*
     Setting the 90-degree position of the steering gear to make the penguin stand on its feet
 */
-void homes(int millis_t)
+void home(int delayms=0)
 {
-    servo[0].SetPosition(90);
-    servo[1].SetPosition(90);
-    servo[2].SetPosition(90);
-    servo[3].SetPosition(90);
-    delay(millis_t);
+	for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+	{
+		Serial.println(i);
+		Log.notice(F("home: setting servoGroupLegs[%d] to 90"CR), i);
+		servoGroupLegs[i].enhancedWrite(90,0,180);
+	}
+	delay(delayms);
+
 }
-
-bool moveNServos(int time, int newPosition[])
-{
-    for (int i = 0; i < 4; i++)
-    {
-        increment[i] = ((newPosition[i]) - oldPosition[i]) / (time / INTERVALTIME);
-    }
-    final_time = millis() + time;
-    iteration = 1;
-    while (millis() < final_time)
-    {
-        interval_time = millis() + INTERVALTIME;
-        oneTime = 0;
-        while (millis() < interval_time)
-        {
-            if (oneTime < 1)
-            {
-                for (int i = 0; i < 4; i++)
-                {
-                    servo[i].SetPosition(oldPosition[i] + (iteration * increment[i]));
-                }
-                iteration++;
-                oneTime++;
-            }
-            if (serial_flag)
-                return true;
-        }
-    }
-
-    for (int i = 0; i < 4; i++)
-    {
-        oldPosition[i] = newPosition[i];
-    }
-    return false;
-}
-
-/*
- Walking control realization:
-*/
-bool walk(int steps, int T, int dir)
-{
-
-    int move1[] = {90, 90 + 35, 90 + 15, 90 + 15};
-    int move2[] = {90 + 25, 90 + 30, 90 + 15, 90 + 15};
-    int move3[] = {90 + 20, 90 + 20, 90 - 15, 90 - 15};
-    int move4[] = {90 - 35, 90, 90 - 15, 90 - 15};
-    int move5[] = {90 - 40, 90 - 30, 90 - 15, 90 - 15};
-    int move6[] = {90 - 20, 90 - 20, 90 + 15, 90 + 15};
-
-    int move21[] = {90, 90 + 35, 90 - 15, 90 - 15};
-    int move22[] = {90 + 25, 90 + 30, 90 - 15, 90 - 15};
-    int move23[] = {90 + 20, 90 + 20, 90 + 15, 90 + 15};
-    int move24[] = {90 - 35, 90, 90 + 15, 90 + 15};
-    int move25[] = {90 - 40, 90 - 30, 90 + 15, 90 + 15};
-    int move26[] = {90 - 20, 90 - 20, 90 - 15, 90 - 15};
-
-    if (dir == 1) //Walking forward
-    {
-        for (int i = 0; i < steps; i++)
-            if (
-                moveNServos(T * 0.2, move1) ||
-                delays(t / 10) ||
-                moveNServos(T * 0.2, move2) ||
-                delays(t / 10) ||
-                moveNServos(T * 0.2, move3) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move4) ||
-                delays(t / 2) ||
-                moveNServos(T * 0.2, move5) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move6) ||
-                delays(t / 5))
-                return true;
-    }
-    else //Walking backward
-    {
-        for (int i = 0; i < steps; i++)
-            if (
-                moveNServos(T * 0.2, move21) ||
-                delays(t / 10) ||
-                moveNServos(T * 0.2, move22) ||
-                delays(t / 10) ||
-                moveNServos(T * 0.2, move23) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move24) ||
-                delays(t / 2) ||
-                moveNServos(T * 0.2, move25) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move26))
-                return true;
-    }
-
-    return false;
-}
-/*
-    Realization of Turn Control
-*/
-bool turn(int steps, int T, int dir)
-{
-    int move1[] = {90 - 55, 90 - 20, 90 + 20, 90 + 20};
-    int move2[] = {90 - 20, 90 - 20, 90 + 20, 90 - 20};
-    int move3[] = {90 + 20, 90 + 55, 90 + 20, 90 - 20};
-    int move4[] = {90 + 20, 90 + 20, 90 - 20, 90 + 20};
-    int move5[] = {90 - 55, 90 - 20, 90 - 20, 90 + 20};
-    int move6[] = {90 - 20, 90 - 20, 90 + 20, 90 - 20};
-    int move7[] = {90 + 20, 90 + 55, 90 + 20, 90 - 20};
-    int move8[] = {90 + 20, 90 + 20, 90 - 20, 90 + 20};
-
-    int move21[] = {90 + 20, 90 + 55, 90 + 20, 90 + 20};
-    int move22[] = {90 + 20, 90 + 20, 90 + 20, 90 - 20};
-    int move23[] = {90 - 55, 90 - 20, 90 + 20, 90 - 20};
-    int move24[] = {90 - 20, 90 - 20, 90 - 20, 90 - 20};
-    int move25[] = {90 + 20, 90 + 55, 90 - 20, 90 + 20};
-    int move26[] = {90 + 20, 90 + 20, 90 + 20, 90 - 20};
-    int move27[] = {90 - 55, 90 - 20, 90 + 20, 90 - 20};
-    int move28[] = {90 - 20, 90 - 20, 90 - 20, 90 - 20};
-
-    if (dir == 1)
-    {
-        for (int i = 0; i < steps; i++)
-            if (
-                moveNServos(T * 0.2, move1) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move2) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move3) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move4) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move5) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move6) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move7) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move8) ||
-                delays(t / 5))
-                return true;
-    }
-    else
-    {
-        for (int i = 0; i < steps; i++)
-            if (
-                moveNServos(T * 0.2, move21) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move22) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move23) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move24) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move25) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move26) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move27) ||
-                delays(t / 5) ||
-                moveNServos(T * 0.2, move28) ||
-                delays(t / 5))
-                return true;
-    }
-
-    return false;
-}
-
-/* Turn right*/
-bool moonWalkRight(int steps, int T)
-{
-    int A[4] = {25, 25, 0, 0};
-    int O[4] = {-15, 15, 0, 0};
-    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(180 + 120), DEG2RAD(90), DEG2RAD(90)};
-
-    for (int i = 0; i < steps; i++)
-        if (oscillate(A, O, T, phase_diff))
-            return true;
-    return false;
-}
-
-/* Turn left*/
-bool moonWalkLeft(int steps, int T)
-{
-    int A[4] = {25, 25, 0, 0};
-    int O[4] = {-15, 15, 0, 0};
-    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(180 - 120), DEG2RAD(90), DEG2RAD(90)};
-
-    for (int i = 0; i < steps; i++)
-        if (oscillate(A, O, T, phase_diff))
-            return true;
-    return false;
-}
-
-bool crusaito(int steps, int T)
-{
-    int A[4] = {25, 25, 30, 30};
-    int O[4] = {-15, 15, 0, 0};
-    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(180 + 120), DEG2RAD(90), DEG2RAD(90)};
-    for (int i = 0; i < steps; i++)
-        if (oscillate(A, O, T, phase_diff))
-            return true;
-    if (home())
-        return true;
-    return false;
-}
-bool swing(int steps, int T)
-{
-    int A[4] = {25, 25, 0, 0};
-    int O[4] = {-15, 15, 0, 0};
-    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(0), DEG2RAD(90), DEG2RAD(90)};
-
-    for (int i = 0; i < steps; i++)
-        if (oscillate(A, O, T, phase_diff))
-            return true;
-    return false;
-}
-
-bool upDown(int steps, int T)
-{
-    int A[4] = {25, 25, 0, 0};
-    int O[4] = {-15, 15, 0, 0};
-    double phase_diff[4] = {DEG2RAD(180), DEG2RAD(0), DEG2RAD(270), DEG2RAD(270)};
-    for (int i = 0; i < steps; i++)
-        if (oscillate(A, O, T, phase_diff))
-            return true;
-    if (home())
-        return true;
-    return false;
-}
-
-bool flapping(int steps, int T)
-{
-    int A[4] = {15, 15, 8, 8};
-    int O[4] = {-A[0], A[1], 0, 0};
-    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(180), DEG2RAD(-90), DEG2RAD(90)};
-
-    for (int i = 0; i < steps; i++)
-        if (oscillate(A, O, T, phase_diff))
-            return true;
-    return false;
-}
-
-bool run(int steps, int T)
-{
-    int A[4] = {10, 10, 10, 10};
-    int O[4] = {0, 0, 0, 0};
-    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(0), DEG2RAD(90), DEG2RAD(90)};
-
-    for (int i = 0; i < steps; i++)
-        if (oscillate(A, O, T, phase_diff))
-            return true;
-    return false;
-}
-
-bool backyard(int steps, int T)
-{
-    int A[4] = {15, 15, 30, 30};
-    int O[4] = {0, 0, 0, 0};
-    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(0), DEG2RAD(-90), DEG2RAD(-90)};
-
-    for (int i = 0; i < steps; i++)
-        if (oscillate(A, O, T, phase_diff))
-            return true;
-    return false;
-}
-
-bool backyardSlow(int steps, int T)
-{
-    int A[4] = {15, 15, 30, 30};
-    int O[4] = {0, 0, 0, 0};
-    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(0), DEG2RAD(-90), DEG2RAD(-90)};
-
-    for (int i = 0; i < steps; i++)
-        if (oscillate(A, O, T, phase_diff))
-            return true;
-    return false;
-}
-
-bool goingUp(int tempo)
-{
-    int move1[] = {50, 130, 90, 90};
-    if (moveNServos(tempo * HIGH_RATE, move1) ||
-        delays(tempo / 2) ||
-        home())
-        return true;
-    return false;
-}
-
-bool drunk(int tempo)
-{
-    int move1[] = {70, 70, 90, 90};
-    int move2[] = {110, 110, 90, 90};
-    int move3[] = {70, 70, 90, 90};
-    int move4[] = {110, 110, 90, 90};
-    if (moveNServos(tempo * MID_RATE, move1) ||
-        moveNServos(tempo * MID_RATE, move2) ||
-        moveNServos(tempo * MID_RATE, move3) ||
-        moveNServos(tempo * MID_RATE, move4) ||
-        home())
-        return true;
-    return false;
-}
-
-bool noGravity(int tempo)
-{
-    int move1[] = {120, 140, 90, 90};
-    int move2[] = {120, 30, 90, 90};
-    int move3[] = {120, 120, 90, 90};
-    int move4[] = {120, 30, 120, 120};
-    int move5[] = {120, 30, 60, 60};
-    if (moveNServos(tempo * MID_RATE, move1) ||
-        delays(tempo) ||
-        moveNServos(tempo * MID_RATE, move2) ||
-        moveNServos(tempo * MID_RATE, move3) ||
-        moveNServos(tempo * MID_RATE, move2) ||
-        delays(tempo) ||
-        moveNServos(tempo * LOW_RATE, move4) ||
-        delays(tempo) ||
-        moveNServos(tempo * LOW_RATE, move5) ||
-        delays(tempo) ||
-        moveNServos(tempo * LOW_RATE, move4) ||
-        delays(tempo) ||
-        home())
-        return true;
-    return false;
-}
-
-bool kickLeft(int tempo)
-{
-    int move1[] = {120, 140, 90, 90};
-    int move2[] = {120, 90, 90, 90};
-    int move3[] = {120, 120, 90, 90};
-    int move4[] = {120, 90, 120, 120};
-    int move5[] = {120, 120, 60, 60};
-    if (moveNServos(tempo * MID_RATE, move1) ||
-        delays(tempo) ||
-        moveNServos(tempo * MID_RATE, move2) ||
-        delays(tempo / 4) ||
-        moveNServos(tempo * MID_RATE, move3) ||
-        delays(tempo / 4) ||
-        moveNServos(tempo * LOW_RATE, move4) ||
-        delays(tempo / 4) ||
-        moveNServos(tempo * LOW_RATE, move5) ||
-        delays(tempo / 4) ||
-        home())
-        return true;
-    return false;
-}
-
-bool kickRight(int tempo)
-{
-    int move1[] = {40, 60, 90, 90};
-    int move2[] = {90, 60, 90, 90};
-    int move3[] = {60, 60, 90, 90};
-    int move4[] = {90, 60, 120, 120};
-    int move5[] = {60, 60, 60, 60};
-    if (moveNServos(tempo * MID_RATE, move1) ||
-        delays(tempo) ||
-        moveNServos(tempo * MID_RATE, move2) ||
-        delays(tempo / 4) ||
-        moveNServos(tempo * MID_RATE, move3) ||
-        delays(tempo / 4) ||
-        moveNServos(tempo * LOW_RATE, move4) ||
-        delays(tempo / 4) ||
-        moveNServos(tempo * LOW_RATE, move5) ||
-        delays(tempo / 4) ||
-        home())
-        return true;
-    return false;
-}
-
-bool legRaise(int tempo, int dir)
-{
-    if (dir)
-    {
-        int move1[] = {70, 70, 60, 60};
-        if (moveNServos(tempo * MID_RATE, move1) || delays(tempo))
-            return true;
-    }
-    else
-    {
-        int move1[] = {110, 110, 120, 120};
-        if (moveNServos(tempo * MID_RATE, move1) || delays(tempo))
-            return true;
-    }
-    if (home())
-        return true;
-    return false;
-}
-
-bool legRaise1(int tempo, int dir)
-{
-    if (dir)
-    {
-        int move1[] = {50, 60, 90, 90};
-        int move2[] = {60, 60, 120, 90};
-        int move3[] = {60, 60, 60, 90};
-        if (moveNServos(tempo * MID_RATE, move1) ||
-            delays(tempo) ||
-            moveNServos(tempo * LOW_RATE, move2) ||
-            delays(tempo / 4) ||
-            moveNServos(tempo * LOW_RATE, move3) ||
-            delays(tempo / 4) ||
-            moveNServos(tempo * LOW_RATE, move2) ||
-            delays(tempo / 4) ||
-            moveNServos(tempo * LOW_RATE, move3) ||
-            delays(tempo / 4))
-            return true;
-    }
-    else
-    {
-        int move1[] = {120, 130, 90, 90};
-        int move2[] = {120, 120, 90, 60};
-        int move3[] = {120, 120, 90, 120};
-        if (moveNServos(tempo, move1) ||
-            delays(tempo) ||
-            moveNServos(tempo * MID_RATE, move2) ||
-            delays(tempo / 4) ||
-            moveNServos(tempo * MID_RATE, move3) ||
-            delays(tempo / 4) ||
-            moveNServos(tempo * MID_RATE, move2) ||
-            delays(tempo / 4) ||
-            moveNServos(tempo * MID_RATE, move3) ||
-            delays(tempo / 4))
-            return true;
-    }
-    if (home())
-        return true;
-    return false;
-}
-
-bool legRaise2(int steps, int tempo, int dir)
-{
-    if (dir)
-    {
-        int move1[] = {20, 60, 90, 90};
-        int move2[] = {20, 90, 120, 90};
-        for (int i = 0; i < steps; i++)
-        {
-            if (moveNServos(tempo * 0.7, move1) ||
-                delays(tempo / 4) ||
-                moveNServos(tempo * 0.7, move2) ||
-                delays(tempo / 4))
-                return true;
-        }
-    }
-    else
-    {
-        int move1[] = {120, 160, 90, 90};
-        int move2[] = {90, 160, 90, 60};
-        for (int i = 0; i < steps; i++)
-        {
-            if (moveNServos(tempo * 0.7, move1) ||
-                delays(tempo / 4) ||
-                moveNServos(tempo * 0.7, move2) ||
-                delays(tempo / 4))
-                return true;
-        }
-    }
-    if (home())
-        return true;
-    return false;
-}
-
-bool legRaise3(int steps, int tempo, int dir)
-{
-    if (dir)
-    {
-        int move1[] = {20, 60, 90, 90};
-        int move2[] = {20, 90, 90, 90};
-        for (int i = 0; i < steps; i++)
-        {
-            if (moveNServos(tempo * 0.5, move1) ||
-                delays(tempo / 4) ||
-                moveNServos(tempo * 0.5, move2) ||
-                delays(tempo / 4))
-                return true;
-        }
-    }
-    else
-    {
-        int move1[] = {120, 160, 90, 90};
-        int move2[] = {90, 160, 90, 90};
-        for (int i = 0; i < steps; i++)
-        {
-            if (moveNServos(tempo * 0.5, move1) ||
-                delays(tempo / 4) ||
-                moveNServos(tempo * 0.5, move2) ||
-                delays(tempo / 4))
-                return true;
-        }
-    }
-    if (home())
-        return true;
-    return false;
-}
-
-bool legRaise4(int tempo, int dir)
-{
-    if (dir)
-    {
-        int move1[] = {20, 60, 90, 90};
-        int move2[] = {20, 90, 90, 90};
-
-        if (moveNServos(tempo * MID_RATE, move1) ||
-            delays(tempo / 4) ||
-            moveNServos(tempo * MID_RATE, move2) ||
-            delays(tempo / 4))
-            return true;
-    }
-    else
-    {
-        int move1[] = {120, 160, 90, 90};
-        int move2[] = {90, 160, 90, 90};
-        if (moveNServos(tempo * MID_RATE, move1) ||
-            delays(tempo / 4) ||
-            moveNServos(tempo * MID_RATE, move2) ||
-            delays(tempo / 4))
-            return true;
-    }
-    if (home())
-        return true;
-    return false;
-}
-
-bool sitdown()
-{
-    int move1[] = {150, 90, 90, 90};
-    int move2[] = {150, 30, 90, 90};
-    if (moveNServos(t * ULTRA_LOW_RATE, move1) ||
-        delays(t / 2) ||
-        moveNServos(t * ULTRA_LOW_RATE, move2) ||
-        delays(t / 2) ||
-        home())
-        return true;
-    return false;
-}
-
-bool lateral_fuerte(boolean dir, int tempo)
-{
-    if (dir)
-    {
-        int move1[] = {CENTRE - 2 * AMPLITUDE, CENTRE - AMPLITUDE, CENTRE, CENTRE};
-        int move2[] = {CENTRE + AMPLITUDE, CENTRE - AMPLITUDE, CENTRE, CENTRE};
-        int move3[] = {CENTRE - 2 * AMPLITUDE, CENTRE - AMPLITUDE, CENTRE, CENTRE};
-        if (moveNServos(tempo * LOW_RATE, move1) || delays(tempo * 2) ||
-            moveNServos(tempo * ULTRA_HIGH_RATE, move2) || delays(tempo / 2) ||
-            moveNServos(tempo * ULTRA_HIGH_RATE, move3) || delays(tempo))
-            return true;
-    }
-    else
-    {
-        int move1[] = {CENTRE + AMPLITUDE, CENTRE + 2 * AMPLITUDE, CENTRE, CENTRE};
-        int move2[] = {CENTRE + AMPLITUDE, CENTRE - AMPLITUDE, CENTRE, CENTRE};
-        int move3[] = {CENTRE + AMPLITUDE, CENTRE + 2 * AMPLITUDE, CENTRE, CENTRE};
-        if (moveNServos(tempo * LOW_RATE, move1) || delays(tempo * 2) ||
-            moveNServos(tempo * ULTRA_HIGH_RATE, move2) || delays(tempo / 2) ||
-            moveNServos(tempo * ULTRA_HIGH_RATE, move3) || delays(tempo))
-            return true;
-    }
-    if (home())
-        return true;
-    return false;
-}
-
-bool primera_parte()
-{
-    int move2[4] = {90, 90, 90, 90};
-    if (lateral_fuerte(1, t) ||
-        moveNServos(t * 0.5, move2) ||
-        lateral_fuerte(0, t) ||
-        moveNServos(t * 0.5, move2) ||
-        lateral_fuerte(1, t) ||
-        moveNServos(t * 0.5, move2) ||
-        lateral_fuerte(0, t) ||
-        home())
-        return true;
-    return false;
-}
-
-bool segunda_parte()
-{
-    int move1[4] = {90, 90, 80, 100};
-    int move2[4] = {90, 90, 100, 80};
-    for (int x = 0; x < 3; x++)
-    {
-        for (int i = 0; i < 3; i++)
-        {
-            pause = millis();
-            if (moveNServos(t * 0.15, move1) ||
-                moveNServos(t * 0.15, move2))
-                return true;
-            while (millis() < (pause + t))
-            {
-                if (irValue)
-                    return true;
-            }
-        }
-    }
-    if (home())
-        return true;
-    return false;
-}
-/*Dance action part*/
-
-void dance()
-{
-    primera_parte();
-    segunda_parte();
-    moonWalkLeft(4, t * 2);
-    moonWalkRight(4, t * 2);
-    moonWalkLeft(4, t * 2);
-    moonWalkRight(4, t * 2);
-    primera_parte();
-
-    for (int i = 0; i < 16; i++)
-    {
-        flapping(1, t / 4);
-        delays(3 * t / 4);
-    }
-
-    moonWalkRight(4, t * 2);
-    moonWalkLeft(4, t * 2);
-    moonWalkRight(4, t * 2);
-    moonWalkLeft(4, t * 2);
-
-    drunk(t * 4);
-    drunk(t * 4);
-    drunk(t * 4);
-    drunk(t * 4);
-    kickLeft(t);
-    kickRight(t);
-    drunk(t * 8);
-    drunk(t * 4);
-    drunk(t / 2);
-    delays(t * 4);
-
-    drunk(t / 2);
-
-    delays(t * 4);
-    walk(2, t * 3, 1);
-    home();
-    backyard(2, t * 2);
-    home();
-    goingUp(t * 2);
-    goingUp(t * 1);
-    noGravity(t);
-
-    delays(t);
-    primera_parte();
-    for (int i = 0; i < 32; i++)
-    {
-        flapping(1, t / 2);
-        delays(t / 2);
-    }
-
-    for (int i = 0; i < 4; i++)
-        servo[i].SetPosition(90);
-}
-
-void dance2()
-{
-    if (lateral_fuerte(1, t) ||
-        lateral_fuerte(0, t) ||
-        drunk(t / 2) ||
-        drunk(t) ||
-        kickLeft(t) ||
-        kickRight(t) ||
-        walk(2, t * 3, 1) ||
-        home() ||
-        backyard(2, t * 4) ||
-        noGravity(t) ||
-        lateral_fuerte(1, t) ||
-        lateral_fuerte(0, t) ||
-        segunda_parte() ||
-        upDown(5, 500))
-        return;
-}
-
-void dance3()
-{
-    if (sitdown() ||
-        legRaise(t, 1) ||
-        swing(5, t) ||
-        legRaise1(t, 1) ||
-        walk(2, t * 3, 1) ||
-        home() ||
-        noGravity(t) ||
-        kickRight(t) ||
-        goingUp(t) ||
-        kickLeft(t) ||
-        legRaise4(t, 1) ||
-        backyard(2, t * 4) ||
-        drunk(t) ||
-        lateral_fuerte(1, 500) ||
-        lateral_fuerte(0, 500) ||
-        sitdown())
-        return;
-}
-
-void dance4()
-{
-    if (flapping(1, t) ||
-        drunk(t) ||
-        kickLeft(t) ||
-        walk(2, t * 3, 1) ||
-        home() ||
-        lateral_fuerte(0, t) ||
-        sitdown() ||
-        legRaise(t, 1) ||
-        swing(5, t) ||
-        backyard(2, t * 4) ||
-        goingUp(t) ||
-        noGravity(t) ||
-        upDown(5, t) ||
-        legRaise1(t, 1) ||
-        legRaise2(4, t, 0) ||
-        kickRight(t) ||
-        goingUp(t) ||
-        legRaise3(4, t, 1) ||
-        kickLeft(t) ||
-        legRaise4(t, 1) ||
-        segunda_parte() ||
-        sitdown())
-        return;
-}
-void start()
-{
-    mp3.stopPlay();
-    delay(10);
-    mp3.stopPlay();
-    delay(10);
-    mp3.stopPlay();
-    delay(10);
-    mp3.playSong(1, mp3.volume);
-    startDance();
-    mp3.stopPlay();
-    delay(10);
-    mp3.stopPlay();
-    delay(10);
-    mp3.stopPlay();
-    delay(10);
-    servoAttach();
-}
-
-void startDance()
-{
-    servoAttach();
-    lateral_fuerte(1, t);
-    lateral_fuerte(0, t);
-    goingUp(t);
-    servoDetach();
-}
-
-/* Realization of Obstacle Avoidance Mode*/
-void obstacleMode()
-{
-    bool turnFlag = true;
-    servoDetach();
-    //delay(500);
-    distance_value = getDistance();
-    /*  Serial.print("distance_obs: ");
-    Serial.println(distance_value);
-*/
-    if (distance_value >= 1 && distance_value <= 500)
-    {
-        st188Val_L = analogRead(ST188_L_PIN);
-        st188Val_R = analogRead(ST188_R_PIN);
-        if (st188Val_L >= 400 && st188Val_R >= 400)
-        {
-            servoAttach();
-            walk(3, t * 4, -1);
-            if (turnFlag)
-            {
-                turn(3, t * 4, 1);
-            }
-            else
-            {
-                turn(3, t * 4, -1);
-            }
-            servoDetach();
-        }
-        else if (st188Val_L >= 400 && st188Val_R < 400)
-        {
-            turnFlag = true;
-            servoAttach();
-            turn(3, t * 4, 1);
-            servoDetach();
-        }
-        else if (st188Val_L < 400 && st188Val_R >= 400)
-        {
-            turnFlag = false;
-            servoAttach();
-            turn(3, t * 4, -1);
-            servoDetach();
-        }
-        else if (st188Val_L < 400 && st188Val_R < 400)
-        {
-            if (distance_value < 5)
-            {
-                servoAttach();
-                walk(3, t * 3, -1);
-                if (turnFlag)
-                {
-                    turn(3, t * 4, 1);
-                }
-                else
-                {
-                    turn(3, t * 4, -1);
-                }
-                servoDetach();
-            }
-            else if (distance_value >= 5 && distance_value <= 20)
-            {
-                servoAttach();
-                if (turnFlag)
-                {
-                    turn(1, t * 4, 1);
-                }
-                else
-                {
-                    turn(1, t * 4, -1);
-                }
-                servoDetach();
-            }
-            else
-            {
-                servoAttach();
-                walk(1, t * 3, 1);
-                servoDetach();
-            }
-        }
-    }
-    else
-    {
-        servoAttach();//
-        home();
-        servoDetach();
-    }
-}
-
-/* Follow-up mode implementation*/
-void followMode()
-{
-    servoDetach();
-    //delay(500);
-    distance_value = getDistance();
-    /*  Serial.print("distance_follow:");
-    Serial.println(distance_value);
-*/
-    if (distance_value >= 1 && distance_value <= 500)
-    {
-        st188Val_L = analogRead(ST188_L_PIN);
-        st188Val_R = analogRead(ST188_R_PIN);
-
-        /*
-        Serial.print(st188Val_L);
-        Serial.print('\t');
-        Serial.print(st188Val_R);
-        Serial.println();
-       */
-        if (st188Val_L >= 400 && st188Val_R >= 400)
-        {
-            servoAttach();
-            walk(1, t * 3, 1);
-            servoDetach();
-        }
-        else if (st188Val_L >= 400 && st188Val_R < 400)
-        {
-            servoAttach();
-            turn(1, t * 4, -1);
-            servoDetach();
-        }
-        else if (st188Val_L < 400 && st188Val_R >= 400)
-        {
-            servoAttach();
-            turn(1, t * 4, 1);
-            servoDetach();
-        }
-        else if (st188Val_L < 400 && st188Val_R < 400)
-        {
-            if (distance_value > 20)
-            {
-                servoAttach();
-                home();
-                servoDetach();
-            }
-            else
-            {
-                servoAttach();
-                walk(1, t * 3, 1);
-                servoDetach();
-            }
-        }
-    }
-    else
-    {
-        servoAttach();
-        home();
-        servoDetach();
-    }
-}
-
-void st188Adjust(int dis)
-{
-    if (millis() - infraredMeasureTime > 1000 && dis > 20 && dis < 200 && analogRead(ST188_L_PIN) < 300 && analogRead(ST188_R_PIN) < 300)
-    {
-        unsigned long st188RightData = 0;
-        unsigned long st188LeftData = 0;
-        for (int n = 0; n < 10; n++)
-        {
-            st188LeftData += analogRead(ST188_L_PIN);
-            st188RightData += analogRead(ST188_R_PIN);
-        }
-        ST188LeftDataMin = st188LeftData / 10;
-        ST188RightDataMin = st188RightData / 10;
-        ST188Threshold = ST188LeftDataMin - ST188RightDataMin;
-        infraredMeasureTime = millis();
-    }
-}
-
+//
+//bool moveNServos(int time, int newPosition[])
+//{
+//    for (int i = 0; i < 4; i++)
+//    {
+//        increment[i] = ((newPosition[i]) - oldPosition[i]) / (time / INTERVALTIME);
+//    }
+//    final_time = millis() + time;
+//    iteration = 1;
+//    while (millis() < final_time)
+//    {
+//        interval_time = millis() + INTERVALTIME;
+//        oneTime = 0;
+//        while (millis() < interval_time)
+//        {
+//            if (oneTime < 1)
+//            {
+//                for (int i = 0; i < 4; i++)
+//                {
+//                    servo[i].SetPosition(oldPosition[i] + (iteration * increment[i]));
+//                }
+//                iteration++;
+//                oneTime++;
+//            }
+//            if (serial_flag)
+//                return true;
+//        }
+//    }
+//
+//    for (int i = 0; i < 4; i++)
+//    {
+//        oldPosition[i] = newPosition[i];
+//    }
+//    return false;
+//}
+//
+///*
+// Walking control realization:
+//*/
+//bool walk(int steps, int T, int dir)
+//{
+//
+//    int move1[] = {90, 90 + 35, 90 + 15, 90 + 15};
+//    int move2[] = {90 + 25, 90 + 30, 90 + 15, 90 + 15};
+//    int move3[] = {90 + 20, 90 + 20, 90 - 15, 90 - 15};
+//    int move4[] = {90 - 35, 90, 90 - 15, 90 - 15};
+//    int move5[] = {90 - 40, 90 - 30, 90 - 15, 90 - 15};
+//    int move6[] = {90 - 20, 90 - 20, 90 + 15, 90 + 15};
+//
+//    int move21[] = {90, 90 + 35, 90 - 15, 90 - 15};
+//    int move22[] = {90 + 25, 90 + 30, 90 - 15, 90 - 15};
+//    int move23[] = {90 + 20, 90 + 20, 90 + 15, 90 + 15};
+//    int move24[] = {90 - 35, 90, 90 + 15, 90 + 15};
+//    int move25[] = {90 - 40, 90 - 30, 90 + 15, 90 + 15};
+//    int move26[] = {90 - 20, 90 - 20, 90 - 15, 90 - 15};
+//
+//    if (dir == 1) //Walking forward
+//    {
+//        for (int i = 0; i < steps; i++)
+//            if (
+//                moveNServos(T * 0.2, move1) ||
+//                delays(t / 10) ||
+//                moveNServos(T * 0.2, move2) ||
+//                delays(t / 10) ||
+//                moveNServos(T * 0.2, move3) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move4) ||
+//                delays(t / 2) ||
+//                moveNServos(T * 0.2, move5) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move6) ||
+//                delays(t / 5))
+//                return true;
+//    }
+//    else //Walking backward
+//    {
+//        for (int i = 0; i < steps; i++)
+//            if (
+//                moveNServos(T * 0.2, move21) ||
+//                delays(t / 10) ||
+//                moveNServos(T * 0.2, move22) ||
+//                delays(t / 10) ||
+//                moveNServos(T * 0.2, move23) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move24) ||
+//                delays(t / 2) ||
+//                moveNServos(T * 0.2, move25) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move26))
+//                return true;
+//    }
+//
+//    return false;
+//}
+///*
+//    Realization of Turn Control
+//*/
+//bool turn(int steps, int T, int dir)
+//{
+//    int move1[] = {90 - 55, 90 - 20, 90 + 20, 90 + 20};
+//    int move2[] = {90 - 20, 90 - 20, 90 + 20, 90 - 20};
+//    int move3[] = {90 + 20, 90 + 55, 90 + 20, 90 - 20};
+//    int move4[] = {90 + 20, 90 + 20, 90 - 20, 90 + 20};
+//    int move5[] = {90 - 55, 90 - 20, 90 - 20, 90 + 20};
+//    int move6[] = {90 - 20, 90 - 20, 90 + 20, 90 - 20};
+//    int move7[] = {90 + 20, 90 + 55, 90 + 20, 90 - 20};
+//    int move8[] = {90 + 20, 90 + 20, 90 - 20, 90 + 20};
+//
+//    int move21[] = {90 + 20, 90 + 55, 90 + 20, 90 + 20};
+//    int move22[] = {90 + 20, 90 + 20, 90 + 20, 90 - 20};
+//    int move23[] = {90 - 55, 90 - 20, 90 + 20, 90 - 20};
+//    int move24[] = {90 - 20, 90 - 20, 90 - 20, 90 - 20};
+//    int move25[] = {90 + 20, 90 + 55, 90 - 20, 90 + 20};
+//    int move26[] = {90 + 20, 90 + 20, 90 + 20, 90 - 20};
+//    int move27[] = {90 - 55, 90 - 20, 90 + 20, 90 - 20};
+//    int move28[] = {90 - 20, 90 - 20, 90 - 20, 90 - 20};
+//
+//    if (dir == 1)
+//    {
+//        for (int i = 0; i < steps; i++)
+//            if (
+//                moveNServos(T * 0.2, move1) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move2) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move3) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move4) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move5) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move6) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move7) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move8) ||
+//                delays(t / 5))
+//                return true;
+//    }
+//    else
+//    {
+//        for (int i = 0; i < steps; i++)
+//            if (
+//                moveNServos(T * 0.2, move21) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move22) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move23) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move24) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move25) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move26) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move27) ||
+//                delays(t / 5) ||
+//                moveNServos(T * 0.2, move28) ||
+//                delays(t / 5))
+//                return true;
+//    }
+//
+//    return false;
+//}
+//
+///* Turn right*/
+//bool moonWalkRight(int steps, int T)
+//{
+//    int A[4] = {25, 25, 0, 0};
+//    int O[4] = {-15, 15, 0, 0};
+//    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(180 + 120), DEG2RAD(90), DEG2RAD(90)};
+//
+//    for (int i = 0; i < steps; i++)
+//        if (oscillate(A, O, T, phase_diff))
+//            return true;
+//    return false;
+//}
+//
+///* Turn left*/
+//bool moonWalkLeft(int steps, int T)
+//{
+//    int A[4] = {25, 25, 0, 0};
+//    int O[4] = {-15, 15, 0, 0};
+//    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(180 - 120), DEG2RAD(90), DEG2RAD(90)};
+//
+//    for (int i = 0; i < steps; i++)
+//        if (oscillate(A, O, T, phase_diff))
+//            return true;
+//    return false;
+//}
+//
+//bool crusaito(int steps, int T)
+//{
+//    int A[4] = {25, 25, 30, 30};
+//    int O[4] = {-15, 15, 0, 0};
+//    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(180 + 120), DEG2RAD(90), DEG2RAD(90)};
+//    for (int i = 0; i < steps; i++)
+//        if (oscillate(A, O, T, phase_diff))
+//            return true;
+//    if (home())
+//        return true;
+//    return false;
+//}
+//bool swing(int steps, int T)
+//{
+//    int A[4] = {25, 25, 0, 0};
+//    int O[4] = {-15, 15, 0, 0};
+//    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(0), DEG2RAD(90), DEG2RAD(90)};
+//
+//    for (int i = 0; i < steps; i++)
+//        if (oscillate(A, O, T, phase_diff))
+//            return true;
+//    return false;
+//}
+//
+//bool upDown(int steps, int T)
+//{
+//    int A[4] = {25, 25, 0, 0};
+//    int O[4] = {-15, 15, 0, 0};
+//    double phase_diff[4] = {DEG2RAD(180), DEG2RAD(0), DEG2RAD(270), DEG2RAD(270)};
+//    for (int i = 0; i < steps; i++)
+//        if (oscillate(A, O, T, phase_diff))
+//            return true;
+//    if (home())
+//        return true;
+//    return false;
+//}
+//
+//bool flapping(int steps, int T)
+//{
+//    int A[4] = {15, 15, 8, 8};
+//    int O[4] = {-A[0], A[1], 0, 0};
+//    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(180), DEG2RAD(-90), DEG2RAD(90)};
+//
+//    for (int i = 0; i < steps; i++)
+//        if (oscillate(A, O, T, phase_diff))
+//            return true;
+//    return false;
+//}
+//
+//bool run(int steps, int T)
+//{
+//    int A[4] = {10, 10, 10, 10};
+//    int O[4] = {0, 0, 0, 0};
+//    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(0), DEG2RAD(90), DEG2RAD(90)};
+//
+//    for (int i = 0; i < steps; i++)
+//        if (oscillate(A, O, T, phase_diff))
+//            return true;
+//    return false;
+//}
+//
+//bool backyard(int steps, int T)
+//{
+//    int A[4] = {15, 15, 30, 30};
+//    int O[4] = {0, 0, 0, 0};
+//    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(0), DEG2RAD(-90), DEG2RAD(-90)};
+//
+//    for (int i = 0; i < steps; i++)
+//        if (oscillate(A, O, T, phase_diff))
+//            return true;
+//    return false;
+//}
+//
+//bool backyardSlow(int steps, int T)
+//{
+//    int A[4] = {15, 15, 30, 30};
+//    int O[4] = {0, 0, 0, 0};
+//    double phase_diff[4] = {DEG2RAD(0), DEG2RAD(0), DEG2RAD(-90), DEG2RAD(-90)};
+//
+//    for (int i = 0; i < steps; i++)
+//        if (oscillate(A, O, T, phase_diff))
+//            return true;
+//    return false;
+//}
+//
+//bool goingUp(int tempo)
+//{
+//    int move1[] = {50, 130, 90, 90};
+//    if (moveNServos(tempo * HIGH_RATE, move1) ||
+//        delays(tempo / 2) ||
+//        home())
+//        return true;
+//    return false;
+//}
+//
+//bool drunk(int tempo)
+//{
+//    int move1[] = {70, 70, 90, 90};
+//    int move2[] = {110, 110, 90, 90};
+//    int move3[] = {70, 70, 90, 90};
+//    int move4[] = {110, 110, 90, 90};
+//    if (moveNServos(tempo * MID_RATE, move1) ||
+//        moveNServos(tempo * MID_RATE, move2) ||
+//        moveNServos(tempo * MID_RATE, move3) ||
+//        moveNServos(tempo * MID_RATE, move4) ||
+//        home())
+//        return true;
+//    return false;
+//}
+//
+//bool noGravity(int tempo)
+//{
+//    int move1[] = {120, 140, 90, 90};
+//    int move2[] = {120, 30, 90, 90};
+//    int move3[] = {120, 120, 90, 90};
+//    int move4[] = {120, 30, 120, 120};
+//    int move5[] = {120, 30, 60, 60};
+//    if (moveNServos(tempo * MID_RATE, move1) ||
+//        delays(tempo) ||
+//        moveNServos(tempo * MID_RATE, move2) ||
+//        moveNServos(tempo * MID_RATE, move3) ||
+//        moveNServos(tempo * MID_RATE, move2) ||
+//        delays(tempo) ||
+//        moveNServos(tempo * LOW_RATE, move4) ||
+//        delays(tempo) ||
+//        moveNServos(tempo * LOW_RATE, move5) ||
+//        delays(tempo) ||
+//        moveNServos(tempo * LOW_RATE, move4) ||
+//        delays(tempo) ||
+//        home())
+//        return true;
+//    return false;
+//}
+//
+//bool kickLeft(int tempo)
+//{
+//    int move1[] = {120, 140, 90, 90};
+//    int move2[] = {120, 90, 90, 90};
+//    int move3[] = {120, 120, 90, 90};
+//    int move4[] = {120, 90, 120, 120};
+//    int move5[] = {120, 120, 60, 60};
+//    if (moveNServos(tempo * MID_RATE, move1) ||
+//        delays(tempo) ||
+//        moveNServos(tempo * MID_RATE, move2) ||
+//        delays(tempo / 4) ||
+//        moveNServos(tempo * MID_RATE, move3) ||
+//        delays(tempo / 4) ||
+//        moveNServos(tempo * LOW_RATE, move4) ||
+//        delays(tempo / 4) ||
+//        moveNServos(tempo * LOW_RATE, move5) ||
+//        delays(tempo / 4) ||
+//        home())
+//        return true;
+//    return false;
+//}
+//
+//bool kickRight(int tempo)
+//{
+//    int move1[] = {40, 60, 90, 90};
+//    int move2[] = {90, 60, 90, 90};
+//    int move3[] = {60, 60, 90, 90};
+//    int move4[] = {90, 60, 120, 120};
+//    int move5[] = {60, 60, 60, 60};
+//    if (moveNServos(tempo * MID_RATE, move1) ||
+//        delays(tempo) ||
+//        moveNServos(tempo * MID_RATE, move2) ||
+//        delays(tempo / 4) ||
+//        moveNServos(tempo * MID_RATE, move3) ||
+//        delays(tempo / 4) ||
+//        moveNServos(tempo * LOW_RATE, move4) ||
+//        delays(tempo / 4) ||
+//        moveNServos(tempo * LOW_RATE, move5) ||
+//        delays(tempo / 4) ||
+//        home())
+//        return true;
+//    return false;
+//}
+//
+//bool legRaise(int tempo, int dir)
+//{
+//    if (dir)
+//    {
+//        int move1[] = {70, 70, 60, 60};
+//        if (moveNServos(tempo * MID_RATE, move1) || delays(tempo))
+//            return true;
+//    }
+//    else
+//    {
+//        int move1[] = {110, 110, 120, 120};
+//        if (moveNServos(tempo * MID_RATE, move1) || delays(tempo))
+//            return true;
+//    }
+//    if (home())
+//        return true;
+//    return false;
+//}
+//
+//bool legRaise1(int tempo, int dir)
+//{
+//    if (dir)
+//    {
+//        int move1[] = {50, 60, 90, 90};
+//        int move2[] = {60, 60, 120, 90};
+//        int move3[] = {60, 60, 60, 90};
+//        if (moveNServos(tempo * MID_RATE, move1) ||
+//            delays(tempo) ||
+//            moveNServos(tempo * LOW_RATE, move2) ||
+//            delays(tempo / 4) ||
+//            moveNServos(tempo * LOW_RATE, move3) ||
+//            delays(tempo / 4) ||
+//            moveNServos(tempo * LOW_RATE, move2) ||
+//            delays(tempo / 4) ||
+//            moveNServos(tempo * LOW_RATE, move3) ||
+//            delays(tempo / 4))
+//            return true;
+//    }
+//    else
+//    {
+//        int move1[] = {120, 130, 90, 90};
+//        int move2[] = {120, 120, 90, 60};
+//        int move3[] = {120, 120, 90, 120};
+//        if (moveNServos(tempo, move1) ||
+//            delays(tempo) ||
+//            moveNServos(tempo * MID_RATE, move2) ||
+//            delays(tempo / 4) ||
+//            moveNServos(tempo * MID_RATE, move3) ||
+//            delays(tempo / 4) ||
+//            moveNServos(tempo * MID_RATE, move2) ||
+//            delays(tempo / 4) ||
+//            moveNServos(tempo * MID_RATE, move3) ||
+//            delays(tempo / 4))
+//            return true;
+//    }
+//    if (home())
+//        return true;
+//    return false;
+//}
+//
+//bool legRaise2(int steps, int tempo, int dir)
+//{
+//    if (dir)
+//    {
+//        int move1[] = {20, 60, 90, 90};
+//        int move2[] = {20, 90, 120, 90};
+//        for (int i = 0; i < steps; i++)
+//        {
+//            if (moveNServos(tempo * 0.7, move1) ||
+//                delays(tempo / 4) ||
+//                moveNServos(tempo * 0.7, move2) ||
+//                delays(tempo / 4))
+//                return true;
+//        }
+//    }
+//    else
+//    {
+//        int move1[] = {120, 160, 90, 90};
+//        int move2[] = {90, 160, 90, 60};
+//        for (int i = 0; i < steps; i++)
+//        {
+//            if (moveNServos(tempo * 0.7, move1) ||
+//                delays(tempo / 4) ||
+//                moveNServos(tempo * 0.7, move2) ||
+//                delays(tempo / 4))
+//                return true;
+//        }
+//    }
+//    if (home())
+//        return true;
+//    return false;
+//}
+//
+//bool legRaise3(int steps, int tempo, int dir)
+//{
+//    if (dir)
+//    {
+//        int move1[] = {20, 60, 90, 90};
+//        int move2[] = {20, 90, 90, 90};
+//        for (int i = 0; i < steps; i++)
+//        {
+//            if (moveNServos(tempo * 0.5, move1) ||
+//                delays(tempo / 4) ||
+//                moveNServos(tempo * 0.5, move2) ||
+//                delays(tempo / 4))
+//                return true;
+//        }
+//    }
+//    else
+//    {
+//        int move1[] = {120, 160, 90, 90};
+//        int move2[] = {90, 160, 90, 90};
+//        for (int i = 0; i < steps; i++)
+//        {
+//            if (moveNServos(tempo * 0.5, move1) ||
+//                delays(tempo / 4) ||
+//                moveNServos(tempo * 0.5, move2) ||
+//                delays(tempo / 4))
+//                return true;
+//        }
+//    }
+//    if (home())
+//        return true;
+//    return false;
+//}
+//
+//bool legRaise4(int tempo, int dir)
+//{
+//    if (dir)
+//    {
+//        int move1[] = {20, 60, 90, 90};
+//        int move2[] = {20, 90, 90, 90};
+//
+//        if (moveNServos(tempo * MID_RATE, move1) ||
+//            delays(tempo / 4) ||
+//            moveNServos(tempo * MID_RATE, move2) ||
+//            delays(tempo / 4))
+//            return true;
+//    }
+//    else
+//    {
+//        int move1[] = {120, 160, 90, 90};
+//        int move2[] = {90, 160, 90, 90};
+//        if (moveNServos(tempo * MID_RATE, move1) ||
+//            delays(tempo / 4) ||
+//            moveNServos(tempo * MID_RATE, move2) ||
+//            delays(tempo / 4))
+//            return true;
+//    }
+//    if (home())
+//        return true;
+//    return false;
+//}
+//
+//bool sitdown()
+//{
+//    int move1[] = {150, 90, 90, 90};
+//    int move2[] = {150, 30, 90, 90};
+//    if (moveNServos(t * ULTRA_LOW_RATE, move1) ||
+//        delays(t / 2) ||
+//        moveNServos(t * ULTRA_LOW_RATE, move2) ||
+//        delays(t / 2) ||
+//        home())
+//        return true;
+//    return false;
+//}
+//
+//bool lateral_fuerte(boolean dir, int tempo)
+//{
+//    if (dir)
+//    {
+//        int move1[] = {CENTRE - 2 * AMPLITUDE, CENTRE - AMPLITUDE, CENTRE, CENTRE};
+//        int move2[] = {CENTRE + AMPLITUDE, CENTRE - AMPLITUDE, CENTRE, CENTRE};
+//        int move3[] = {CENTRE - 2 * AMPLITUDE, CENTRE - AMPLITUDE, CENTRE, CENTRE};
+//        if (moveNServos(tempo * LOW_RATE, move1) || delays(tempo * 2) ||
+//            moveNServos(tempo * ULTRA_HIGH_RATE, move2) || delays(tempo / 2) ||
+//            moveNServos(tempo * ULTRA_HIGH_RATE, move3) || delays(tempo))
+//            return true;
+//    }
+//    else
+//    {
+//        int move1[] = {CENTRE + AMPLITUDE, CENTRE + 2 * AMPLITUDE, CENTRE, CENTRE};
+//        int move2[] = {CENTRE + AMPLITUDE, CENTRE - AMPLITUDE, CENTRE, CENTRE};
+//        int move3[] = {CENTRE + AMPLITUDE, CENTRE + 2 * AMPLITUDE, CENTRE, CENTRE};
+//        if (moveNServos(tempo * LOW_RATE, move1) || delays(tempo * 2) ||
+//            moveNServos(tempo * ULTRA_HIGH_RATE, move2) || delays(tempo / 2) ||
+//            moveNServos(tempo * ULTRA_HIGH_RATE, move3) || delays(tempo))
+//            return true;
+//    }
+//    if (home())
+//        return true;
+//    return false;
+//}
+//
+//bool primera_parte()
+//{
+//    int move2[4] = {90, 90, 90, 90};
+//    if (lateral_fuerte(1, t) ||
+//        moveNServos(t * 0.5, move2) ||
+//        lateral_fuerte(0, t) ||
+//        moveNServos(t * 0.5, move2) ||
+//        lateral_fuerte(1, t) ||
+//        moveNServos(t * 0.5, move2) ||
+//        lateral_fuerte(0, t) ||
+//        home())
+//        return true;
+//    return false;
+//}
+//
+//bool segunda_parte()
+//{
+//    int move1[4] = {90, 90, 80, 100};
+//    int move2[4] = {90, 90, 100, 80};
+//    for (int x = 0; x < 3; x++)
+//    {
+//        for (int i = 0; i < 3; i++)
+//        {
+//            pause = millis();
+//            if (moveNServos(t * 0.15, move1) ||
+//                moveNServos(t * 0.15, move2))
+//                return true;
+//            while (millis() < (pause + t))
+//            {
+//                if (irValue)
+//                    return true;
+//            }
+//        }
+//    }
+//    if (home())
+//        return true;
+//    return false;
+//}
+///*Dance action part*/
+//
+//void dance()
+//{
+//    primera_parte();
+//    segunda_parte();
+//    moonWalkLeft(4, t * 2);
+//    moonWalkRight(4, t * 2);
+//    moonWalkLeft(4, t * 2);
+//    moonWalkRight(4, t * 2);
+//    primera_parte();
+//
+//    for (int i = 0; i < 16; i++)
+//    {
+//        flapping(1, t / 4);
+//        delays(3 * t / 4);
+//    }
+//
+//    moonWalkRight(4, t * 2);
+//    moonWalkLeft(4, t * 2);
+//    moonWalkRight(4, t * 2);
+//    moonWalkLeft(4, t * 2);
+//
+//    drunk(t * 4);
+//    drunk(t * 4);
+//    drunk(t * 4);
+//    drunk(t * 4);
+//    kickLeft(t);
+//    kickRight(t);
+//    drunk(t * 8);
+//    drunk(t * 4);
+//    drunk(t / 2);
+//    delays(t * 4);
+//
+//    drunk(t / 2);
+//
+//    delays(t * 4);
+//    walk(2, t * 3, 1);
+//    home();
+//    backyard(2, t * 2);
+//    home();
+//    goingUp(t * 2);
+//    goingUp(t * 1);
+//    noGravity(t);
+//
+//    delays(t);
+//    primera_parte();
+//    for (int i = 0; i < 32; i++)
+//    {
+//        flapping(1, t / 2);
+//        delays(t / 2);
+//    }
+//
+//    for (int i = 0; i < 4; i++)
+//        servo[i].SetPosition(90);
+//}
+//
+//void dance2()
+//{
+//    if (lateral_fuerte(1, t) ||
+//        lateral_fuerte(0, t) ||
+//        drunk(t / 2) ||
+//        drunk(t) ||
+//        kickLeft(t) ||
+//        kickRight(t) ||
+//        walk(2, t * 3, 1) ||
+//        home() ||
+//        backyard(2, t * 4) ||
+//        noGravity(t) ||
+//        lateral_fuerte(1, t) ||
+//        lateral_fuerte(0, t) ||
+//        segunda_parte() ||
+//        upDown(5, 500))
+//        return;
+//}
+//
+//void dance3()
+//{
+//    if (sitdown() ||
+//        legRaise(t, 1) ||
+//        swing(5, t) ||
+//        legRaise1(t, 1) ||
+//        walk(2, t * 3, 1) ||
+//        home() ||
+//        noGravity(t) ||
+//        kickRight(t) ||
+//        goingUp(t) ||
+//        kickLeft(t) ||
+//        legRaise4(t, 1) ||
+//        backyard(2, t * 4) ||
+//        drunk(t) ||
+//        lateral_fuerte(1, 500) ||
+//        lateral_fuerte(0, 500) ||
+//        sitdown())
+//        return;
+//}
+//
+//void dance4()
+//{
+//    if (flapping(1, t) ||
+//        drunk(t) ||
+//        kickLeft(t) ||
+//        walk(2, t * 3, 1) ||
+//        home() ||
+//        lateral_fuerte(0, t) ||
+//        sitdown() ||
+//        legRaise(t, 1) ||
+//        swing(5, t) ||
+//        backyard(2, t * 4) ||
+//        goingUp(t) ||
+//        noGravity(t) ||
+//        upDown(5, t) ||
+//        legRaise1(t, 1) ||
+//        legRaise2(4, t, 0) ||
+//        kickRight(t) ||
+//        goingUp(t) ||
+//        legRaise3(4, t, 1) ||
+//        kickLeft(t) ||
+//        legRaise4(t, 1) ||
+//        segunda_parte() ||
+//        sitdown())
+//        return;
+//}
+//void start()
+//{
+//    mp3.stopPlay();
+//    delay(10);
+//    mp3.stopPlay();
+//    delay(10);
+//    mp3.stopPlay();
+//    delay(10);
+//    mp3.playSong(1, mp3.volume);
+//    startDance();
+//    mp3.stopPlay();
+//    delay(10);
+//    mp3.stopPlay();
+//    delay(10);
+//    mp3.stopPlay();
+//    delay(10);
+//    servoAttach();
+//}
+//
+//void startDance()
+//{
+//    servoAttach();
+//    lateral_fuerte(1, t);
+//    lateral_fuerte(0, t);
+//    goingUp(t);
+//    servoDetach();
+//}
+//
+///* Realization of Obstacle Avoidance Mode*/
+//void obstacleMode()
+//{
+//    bool turnFlag = true;
+//    servoDetach();
+//    //delay(500);
+//    distance_value = getDistance();
+//    /*  Serial.print("distance_obs: ");
+//    Serial.println(distance_value);
+//*/
+//    if (distance_value >= 1 && distance_value <= 500)
+//    {
+//        st188Val_L = analogRead(ST188_L_PIN);
+//        st188Val_R = analogRead(ST188_R_PIN);
+//        if (st188Val_L >= 400 && st188Val_R >= 400)
+//        {
+//            servoAttach();
+//            walk(3, t * 4, -1);
+//            if (turnFlag)
+//            {
+//                turn(3, t * 4, 1);
+//            }
+//            else
+//            {
+//                turn(3, t * 4, -1);
+//            }
+//            servoDetach();
+//        }
+//        else if (st188Val_L >= 400 && st188Val_R < 400)
+//        {
+//            turnFlag = true;
+//            servoAttach();
+//            turn(3, t * 4, 1);
+//            servoDetach();
+//        }
+//        else if (st188Val_L < 400 && st188Val_R >= 400)
+//        {
+//            turnFlag = false;
+//            servoAttach();
+//            turn(3, t * 4, -1);
+//            servoDetach();
+//        }
+//        else if (st188Val_L < 400 && st188Val_R < 400)
+//        {
+//            if (distance_value < 5)
+//            {
+//                servoAttach();
+//                walk(3, t * 3, -1);
+//                if (turnFlag)
+//                {
+//                    turn(3, t * 4, 1);
+//                }
+//                else
+//                {
+//                    turn(3, t * 4, -1);
+//                }
+//                servoDetach();
+//            }
+//            else if (distance_value >= 5 && distance_value <= 20)
+//            {
+//                servoAttach();
+//                if (turnFlag)
+//                {
+//                    turn(1, t * 4, 1);
+//                }
+//                else
+//                {
+//                    turn(1, t * 4, -1);
+//                }
+//                servoDetach();
+//            }
+//            else
+//            {
+//                servoAttach();
+//                walk(1, t * 3, 1);
+//                servoDetach();
+//            }
+//        }
+//    }
+//    else
+//    {
+//        servoAttach();//
+//        home();
+//        servoDetach();
+//    }
+//}
+//
+///* Follow-up mode implementation*/
+//void followMode()
+//{
+//    servoDetach();
+//    //delay(500);
+//    distance_value = getDistance();
+//    /*  Serial.print("distance_follow:");
+//    Serial.println(distance_value);
+//*/
+//    if (distance_value >= 1 && distance_value <= 500)
+//    {
+//        st188Val_L = analogRead(ST188_L_PIN);
+//        st188Val_R = analogRead(ST188_R_PIN);
+//
+//        /*
+//        Serial.print(st188Val_L);
+//        Serial.print('\t');
+//        Serial.print(st188Val_R);
+//        Serial.println();
+//       */
+//        if (st188Val_L >= 400 && st188Val_R >= 400)
+//        {
+//            servoAttach();
+//            walk(1, t * 3, 1);
+//            servoDetach();
+//        }
+//        else if (st188Val_L >= 400 && st188Val_R < 400)
+//        {
+//            servoAttach();
+//            turn(1, t * 4, -1);
+//            servoDetach();
+//        }
+//        else if (st188Val_L < 400 && st188Val_R >= 400)
+//        {
+//            servoAttach();
+//            turn(1, t * 4, 1);
+//            servoDetach();
+//        }
+//        else if (st188Val_L < 400 && st188Val_R < 400)
+//        {
+//            if (distance_value > 20)
+//            {
+//                servoAttach();
+//                home();
+//                servoDetach();
+//            }
+//            else
+//            {
+//                servoAttach();
+//                walk(1, t * 3, 1);
+//                servoDetach();
+//            }
+//        }
+//    }
+//    else
+//    {
+//        servoAttach();
+//        home();
+//        servoDetach();
+//    }
+//}
+//
+//void st188Adjust(int dis)
+//{
+//    if (millis() - infraredMeasureTime > 1000 && dis > 20 && dis < 200 && analogRead(ST188_L_PIN) < 300 && analogRead(ST188_R_PIN) < 300)
+//    {
+//        unsigned long st188RightData = 0;
+//        unsigned long st188LeftData = 0;
+//        for (int n = 0; n < 10; n++)
+//        {
+//            st188LeftData += analogRead(ST188_L_PIN);
+//            st188RightData += analogRead(ST188_R_PIN);
+//        }
+//        ST188LeftDataMin = st188LeftData / 10;
+//        ST188RightDataMin = st188RightData / 10;
+//        ST188Threshold = ST188LeftDataMin - ST188RightDataMin;
+//        infraredMeasureTime = millis();
+//    }
+//}
+//
 
 void servoAttach()
 {
-    //
-    servo[0].SetTrim(trim_rr);
-    servo[1].SetTrim(trim_rl);
-    servo[2].SetTrim(trim_yr);
-    servo[3].SetTrim(trim_yl);
+    Log.notice(F("servoAttach start"CR));
+    DEBUG_SERIAL_NAME.println(trim_rr);
+    servoGroupLegs[0].setTrim(trim_rr);
 
-    servo[0].attach(RR_PIN);
-    servo[1].attach(RL_PIN);
-    servo[2].attach(YR_PIN);
-    servo[3].attach(YL_PIN);
+    DEBUG_SERIAL_NAME.println(trim_rl);
+    servoGroupLegs[1].setTrim(trim_rl);
+
+    DEBUG_SERIAL_NAME.println(trim_yr);
+    servoGroupLegs[2].setTrim(trim_yr);
+
+    DEBUG_SERIAL_NAME.println(trim_yl);
+    servoGroupLegs[3].setTrim(trim_yl);
+
+    servoGroupLegs[0].attach(RR_PIN);
+    servoGroupLegs[1].attach(RL_PIN);
+    servoGroupLegs[2].attach(YR_PIN);
+    servoGroupLegs[3].attach(YL_PIN);
+    Log.notice(F("servoAttach end"CR));
 }
 
 void servoDetach()
 {
-    servo[0].detach();
-    servo[1].detach();
-    servo[2].detach();
-    servo[3].detach();
+	servoGroupLegs[0].detach();
+	servoGroupLegs[1].detach();
+	servoGroupLegs[2].detach();
+	servoGroupLegs[3].detach();
 }
 
 /* Realization of Ultrasound Ranging*/
@@ -1357,35 +1376,36 @@ int getDistance()
     digitalWrite(TRIG_PIN, LOW);
     return (int)pulseIn(ECHO_PIN, HIGH) / 58;
 }
-
-/* Control command acquisition implementation*/
-void getCommand()
-{
-
-	if (Serial.available())
-    {
-        irValue = Serial.read();
-        if (irValue && irValue != '\0')
-        {
-            // Serial.print("new data: ");
-            // Serial.println(irValue);
-            serial_flag = true;
-        }
-        else
-        {
-            // Serial.print("error data: ");
-            // Serial.println(irValue);
-            irValue = '\0';
-        }
-    }
-
-//	readPacketFromBLE();
-
-    Test_voltageMeasure();// Realization of Voltage Detection
-}
+//
+///* Control command acquisition implementation*/
+//void getCommand()
+//{
+//
+//	if (Serial.available())
+//    {
+//        irValue = Serial.read();
+//        if (irValue && irValue != '\0')
+//        {
+//            // Serial.print("new data: ");
+//            // Serial.println(irValue);
+//            serial_flag = true;
+//        }
+//        else
+//        {
+//            // Serial.print("error data: ");
+//            // Serial.println(irValue);
+//            irValue = '\0';
+//        }
+//    }
+//
+////	readPacketFromBLE();
+//
+//    Test_voltageMeasure();// Realization of Voltage Detection
+//}
 
 void servoInit()
 {
+	Log.notice(F("servoInit: reading trim from eeprom"CR));
     if (EEPROM.read(addr_trim_rr) != 255)
     {
         trim_rr = EEPROM.read(addr_trim_rr) - 90;
@@ -1421,6 +1441,9 @@ void servoInit()
     {
         trim_yl = 0;
     }
+
+    Log.notice(F("servoInit: loaded trim: trim_rr=%d trim_rl=%d trim_yr=%d trim_yl=%d"CR), trim_rr, trim_rl, trim_yr, trim_yl );
+    Log.notice(F("servoInit: finished"CR));
 }
 
 
@@ -1503,6 +1526,38 @@ void clearMessage()
 }
 
 
+/*
+ * setup default values
+ */
+void setupDefaultValues()
+{
+	// servo groups
+	for (unsigned char i=0; i< NUMBER_OF_SERVOGROUPS; i++)
+	{
+		servoGroupMoveIteration[i] = -1;
+		servoGroupMoveIterationDirection[i] = 1;  // may be 1 (forward) or -1 (reverse) or 0 (stop)
+	}
+}
+
+
+/**
+ * setup the servos
+ */
+void setupServos()
+{
+	Log.notice(F("setup servos..."CR));
+	for (unsigned char i; i< sizeof servoGroupLegs; i++)
+	{
+		servoGroupLegs[i].setMaxValue(180);
+		servoGroupLegs[i].setMinValue(0);
+	}
+
+	servoInit();
+	servoAttach();
+	//home(200);
+}
+
+
 // setup the hm10 controller
 void setupBLEHM10()
 {
@@ -1522,11 +1577,11 @@ void setupBLEHM10()
 	bleSerial.println(F("AT+RESET"));
 	delay(1000);
 
-	Serial.println(F("AT+START"));
+	Log.notice(F("AT+START\n"));
 	bleSerial.println(F("AT+START"));
 	delay(BLE_DELAY_BETWEEN_AT_COMMANDS);
 
-	Serial.println("setupBLEHM10 done");
+	Log.notice(F("setupBLEHM10 done\n"));
 
 	// clear message
 	clearMessage();
@@ -1535,14 +1590,26 @@ void setupBLEHM10()
 
 void setup()
 {
-    Serial.begin(DEBUG_SERIAL_BAUD);
+
+
+	DEBUG_SERIAL_NAME.begin(DEBUG_SERIAL_BAUD);
     bleSerial.begin(BLE_SERIAL_BAUD);
     bleSerial.listen();
-    Serial.println("starting...");
+
+    Log.begin   (LOG_LEVEL_VERBOSE, &DEBUG_SERIAL_NAME);
+
+    Log.notice(F("starting\n"));
 
     setupBLEHM10();
 
+    // setup the default values, initialize arrays, ...
+    setupDefaultValues();
 
+    // setup the servos
+    setupServos();
+
+
+ //   keyframeServoGroupLegs = new ServoKeyframeAnimatorGroup(4);
 //    mp3Serial.begin(9600);
 //    pinMode(ECHO_PIN, INPUT);
 //    pinMode(TRIG_PIN, OUTPUT);
@@ -1553,9 +1620,7 @@ void setup()
 //    mp3.init();
 //    MsTimer2::set(50, getCommand);
 //    MsTimer2::start();
-    servoInit();
-    servoAttach();
-    homes(200);
+
 
     home();
 //	kickLeft(t);
@@ -1568,20 +1633,7 @@ void setup()
 //    start();
     clearMessage();
 
-    servo[0].SetPosition(currentServoPos);
 
-
-    float xoffset=1.5*PI;
-    float yoffset=1;
-    Serial.println((sin(0+xoffset)+yoffset));
-    Serial.println((sin(0.5*PI+xoffset)+yoffset));
-    Serial.println((sin(1*PI+xoffset)+yoffset));
-    Serial.println((sin(1.5*PI+xoffset)+yoffset));
-    Serial.println((sin(2*PI+xoffset)+yoffset));
-    Serial.println((sin(2.5*PI+xoffset)+yoffset));
-    Serial.println((sin(3*PI+xoffset)+yoffset));
-    Serial.println((sin(3.5*PI+xoffset)+yoffset));
-    Serial.println((sin(4*PI+xoffset)+yoffset));
 }
 
 /*
@@ -1597,7 +1649,7 @@ void Test_voltageMeasure(void) //Realization of Voltage Detection
     if (millis() - voltageMeasureTime > 10000)
     {
         double volMeasure = analogRead(VOLTAGE_MEASURE_PIN) * 4.97 / 1023;
-        //Serial.print("Battery voltage: ");
+        Log.warning(F("Battery voltage: %d"), volMeasure);
         //Serial.println(volMeasure)
 
         //if (volMeasure < 3.70 || volMeasure >= 4.97)//Detection of power supply voltage below or above the set value is regarded as an abnormal phenomenon
@@ -1630,22 +1682,22 @@ void Test_voltageMeasure(void) //Realization of Voltage Detection
         }
     }
 }
-    /*
-	Maximum Load Test
-*/
-void BurnBrain_Test(void)
-{
-	servoDetach();
-	delays(10);
-	mp3.stopPlay();
-	delays(10);
-	mp3.playSong(danceIndex, mp3.volume);
-	servoAttach();
-	dance2();
-	getDistance();
-	analogRead(ST188_L_PIN);
-	analogRead(ST188_R_PIN);
-}
+//    /*
+//	Maximum Load Test
+//*/
+//void BurnBrain_Test(void)
+//{
+//	servoDetach();
+//	delays(10);
+//	mp3.stopPlay();
+//	delays(10);
+//	mp3.playSong(danceIndex, mp3.volume);
+//	servoAttach();
+//	dance2();
+//	getDistance();
+//	analogRead(ST188_L_PIN);
+//	analogRead(ST188_R_PIN);
+//}
 
 
 
@@ -1671,12 +1723,12 @@ bool isTimeout()
 void controlServosDirectly()
 {
 	 // rotate
-	servo[SERVO_YL].SetPosition(map(message[PROT_STICK_LX],0,255,0,180));
+	servoGroupLegs[SERVO_YL].enhancedWrite(map(message[PROT_STICK_LX],0,255,0,180));
 
-	servo[SERVO_YR].SetPosition(map(message[PROT_STICK_RX],0,255,0,180));
+	servoGroupLegs[SERVO_YR].enhancedWrite(map(message[PROT_STICK_RX],0,255,0,180));
 	// yaw
-	servo[SERVO_RL].SetPosition(map(message[PROT_STICK_LY],0,255,0,180));
-	servo[SERVO_RR].SetPosition(map(message[PROT_STICK_RY],0,255,0,180));
+	servoGroupLegs[SERVO_RL].enhancedWrite(map(message[PROT_STICK_LY],0,255,0,180));
+	servoGroupLegs[SERVO_RR].enhancedWrite(map(message[PROT_STICK_RY],0,255,0,180));
 
 
 }
@@ -1684,36 +1736,38 @@ void controlServosDirectly()
 void loop()
 {
 	Test_voltageMeasure();
-	if (!isInMove)
-	{
-		Serial.println("DELAY!!!!!!!!!!!!!");
-		delay(2000);
-	}
+
+
+//	if (!isInMove)
+//	{
+//		Serial.println("DELAY!!!!!!!!!!!!!");
+//		delay(2000);
+//	}
 	#if RUNMODE == 1
-	if (sweepDirection==0)
-	{
-		Serial.println("sweep 0");
-		currentServoPos = smoothedServoPosition(duration, key0, key1, currentServoPos);
-	}
-	else
-	{
-		Serial.println("sweep 1");
-		currentServoPos = smoothedServoPosition(duration, key1, key0, currentServoPos);
-	}
-
-	if (!isInMove)
-	{
-		// change direction
-		if (sweepDirection == 0)
-		{
-			sweepDirection=1;
-		}
-		else
-		{
-			sweepDirection=0;
-		}
-
-	}
+//	if (sweepDirection==0)
+//	{
+		myMoveTest(SERVO_GROUP_LEGS, 50);
+//
+//	}
+//	else
+//	{
+//		Serial.println("sweep 1");
+//		//currentServoPos = smoothedServoPosition(duration, key1, key0, currentServoPos);
+//	}
+//
+//	if (!isInMove)
+//	{
+//		// change direction
+//		if (sweepDirection == 0)
+//		{
+//			sweepDirection=1;
+//		}
+//		else
+//		{
+//			sweepDirection=0;
+//		}
+//
+//	}
 	#endif
 
 
@@ -2121,94 +2175,150 @@ void loop()
 }
 
 
+#define ITERATION_MODE_LOOP 0 		// start from 0 again when last iteration is ended
+#define ITERATION_MODE_REVERSE 1	// make iterations backward in reverse order if end is reached
+#define ITERATION_MODE_ONCE 2		// stop when last iteration is done.
+
 
 /**
- *
- * This function returns the position of a servo. Base for (de-)accelleration is sinus curve.
- * targetDuration:		time used to move from posPrevKey to posNextKey in millis
-
- * posPrevKey:  	servo position of at the start (previous keyframe)
- * posNextKey:		target position of the servo (next keyframe)
- * posLast:			last known / targeted position of the servo
- *
- * No Speed change is allowed within a move! (should make things much easier)
+ * calculates the move iteration number wich should be processed
+ * iterationMode may be  ITERATION_MODE_LOOP, ITERATION_MODE_REVERSE or ITERATION_MODE_ONCE
+ * iteration is reference to the iteration variable for the servo group
  */
-unsigned char smoothedServoPosition(
-		unsigned int targetDuration,
-		unsigned char posPrevKey,
-		unsigned char posNextKey,
-		unsigned char posLast)
+void calculateMoveIterationId (unsigned char iterationMode, signed char sizeOfIterations, signed char &iteration,  signed char &iterationDirection)
 {
-	if (!isInMove)
+	#if DEBUG_CALCULATE_MOVE_ITERATION_ID == 1
+		Log.trace(F("calculateMoveIterationId: args: %d, %d, %d, %d"CR), iterationMode, sizeOfIterations, iteration, iterationDirection);
+	#endif
+	// -1 is the start when idling
+	if (iteration==-1)
 	{
-		// not in move jet, so lets start it
-		isInMove=true;
-		timePrevKey=millis();
+		// go iterations forward, start with 0 in the end
+		iterationDirection=1;
 	}
-
-	unsigned long currentTime = millis();
-
-
-	// check if position is reached and time reached
-	if (currentTime > timePrevKey + targetDuration)
+	else
 	{
-
-
-		// time is up, check if position is reached
-		if (posNextKey == posLast)
+		// lower end, already going backward
+		if (iteration == 0 && iterationDirection == -1)
 		{
-			// we are done with the move. Reached position
-			DEBUG_SERIAL_NAME.println("move done");
+			// go forward again, start with iteration 1 because we are already at 0
+			iterationDirection = 1;
 		}
 		else
 		{
-			// time is up, but position does not match -> error in algorithm
-			DEBUG_SERIAL_NAME.print(F("E: "));
-			DEBUG_SERIAL_NAME.print(posNextKey);
-			DEBUG_SERIAL_NAME.print(" vs ");
-			DEBUG_SERIAL_NAME.println(posLast);
+			if (iteration +1 == sizeOfIterations)
+			{
+				// maximum is reached (iterations counts from 0)
+				if (iterationMode == ITERATION_MODE_LOOP)
+				{
+					// loop mode, start from beginning, keep direction forward -> start at 0 at the end
+					iteration=-1;
+				}
+				else
+				{
+					if (iterationMode == ITERATION_MODE_REVERSE)
+					{
+						// end is reached and reverse is set, so reverse direction
+						iterationDirection = -1;
+					}
+					else
+					{
+						if (iterationMode == ITERATION_MODE_ONCE)
+						{
+							// end is reached, stop is set. so keep there
+							iterationDirection=0;
+						}
+					}
+				}
+			}
 		}
-		// end the move
-		isInMove=false;
-
-		// return from function -> shortcut
-		DEBUG_SERIAL_NAME.print("return posNextKey=");
-		DEBUG_SERIAL_NAME.println(posNextKey);
-		return posNextKey;
-
 	}
 
-	// we are currently within the move
-
-	// map timeframe to sinus function
-	float currentTimeInFunction = (float) map(currentTime, timePrevKey, targetDuration + timePrevKey, 0, PI*1000)/1000;
-
-//    float xoffset=1.5*PI;
-//    float yoffset=1;
-//    Serial.println((sin(0+xoffset)+yoffset));
-    long resultInFunction = (long) ((sin(currentTimeInFunction+1.5*PI)+1)*1000);
+	iteration=iteration + iterationDirection;
+	#if DEBUG_CALCULATE_MOVE_ITERATION_ID == 1
+		Log.trace(F("calculateMoveIterationId: iteration=%d, iterationDirection=%d"CR), iteration, iterationDirection);
+	#endif
 
 
-	// map to servo position
-	unsigned char servoPos = map(resultInFunction, 0, 2000, posPrevKey, posNextKey);
-
-
-
-	DEBUG_SERIAL_NAME.print(F(" isInMove="));
-	DEBUG_SERIAL_NAME.print(isInMove);
-	DEBUG_SERIAL_NAME.print(F(" timePrevKey="));
-	DEBUG_SERIAL_NAME.print(timePrevKey);
-	DEBUG_SERIAL_NAME.print(F(" targetDuration="));
-	DEBUG_SERIAL_NAME.print(targetDuration);
-	DEBUG_SERIAL_NAME.print(F(" timeAbs="));
-	DEBUG_SERIAL_NAME.print(currentTime);
-	DEBUG_SERIAL_NAME.print(F(" currentTimeInFunction="));
-	DEBUG_SERIAL_NAME.print(currentTimeInFunction);
-	DEBUG_SERIAL_NAME.print(F(" resultInFunction="));
-	DEBUG_SERIAL_NAME.print(resultInFunction);
-	DEBUG_SERIAL_NAME.print(F(" servoPos="));
-	DEBUG_SERIAL_NAME.println(servoPos);
-
-	// return the servo position
-	return servoPos;
 }
+
+
+/**
+ * fixes speed if outside bounds.
+ * speed: 0 - 255 is allowed, will be mapped to 1 - 255 to fix division by 0 issue
+ */
+unsigned char checkAndCorrectSpeedBounds(unsigned char speed)
+{
+	if (speed == 0)
+	{
+		speed = 1;
+	}
+	else
+	{
+		if (speed > 255)
+		{
+			speed = 255;
+		}
+	}
+
+	return speed;
+
+}
+
+/**
+ * function for move testing
+ *  servoGroupId: ID of ServoGroup
+ *  speed: for movement.
+ */
+void myMoveTest(unsigned char servoGroupId, unsigned int speed)
+{
+
+
+	unsigned char oldMoveIteration = servoGroupMoveIteration[servoGroupId] ;
+
+	Log.notice(F("myMoveTest: keyframeServoGroupLegs.isInMove=%T\n"), keyframeServoGroupLegs.isInMove());
+
+	unsigned int base_duration = 3000;
+	if ( ! keyframeServoGroupLegs.isInMove())
+	{
+		// increase the iteration if we will stay in bounds. otherwise recycle from beginning
+		calculateMoveIterationId( ITERATION_MODE_LOOP, 6, servoGroupMoveIteration[servoGroupId], servoGroupMoveIterationDirection[servoGroupId]);
+
+		// define all the moves
+		unsigned char moves[][4]={
+			{90, 90 + 35, 90 + 15, 90 + 15},
+			{90 + 25, 90 + 30, 90 + 15, 90 + 15},
+			{90 + 20, 90 + 20, 90 - 15, 90 - 15},
+			{90 - 35, 90, 90 - 15, 90 - 15},
+			{90 - 40, 90 - 30, 90 - 15, 90 - 15},
+			{90 - 20, 90 - 20, 90 + 15, 90 + 15}
+		};
+
+		// the faster the speed, the less the time given for a move.
+		DEBUG_SERIAL_NAME.println("XXXXXXXXXXXXXXXX 1");
+		keyframeServoGroupLegs.setServoMoveDuration(base_duration / (checkAndCorrectSpeedBounds(speed) / 10 ));
+		DEBUG_SERIAL_NAME.println("XXXXXXXXXXXXXXXX 2");
+		keyframeServoGroupLegs.setServoPositionsNextKeyframe(moves[servoGroupMoveIteration[servoGroupId]]);
+
+		for (unsigned int i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+		{
+			keyframeServoGroupLegs.getServoKeyframeAnimator(i).setKeyframeMode(KEYFRAME_MODE_SMOOTH);
+		}
+
+	}
+	DEBUG_SERIAL_NAME.println("XXXXXXXXXXXXXXXX 3");
+	// calculate the new servo position
+	keyframeServoGroupLegs.calculateServoPositions();
+
+	for (unsigned char i=0; i < keyframeServoGroupLegs.getNumberOfServos(); i++)
+	{
+		servoGroupLegs[i].enhancedWrite(keyframeServoGroupLegs.getCalculatedServoPositionById(i) , 0, 180);
+	}
+
+	Log.trace(F("myMoveTest: move=%T i=%d d=%d"), keyframeServoGroupLegs.isInMove(),  servoGroupMoveIteration[servoGroupId], servoGroupMoveIterationDirection[servoGroupId] );
+
+
+
+
+}
+
