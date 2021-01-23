@@ -38,14 +38,9 @@ public:
 	void setKeyframeMode(unsigned char keyframeMode);
 
 
-
-
-
-
-
 private:
-	unsigned int 	_duration;
-	unsigned int 	_currentPosition;
+	unsigned int 	_duration=0;
+	unsigned char 	_currentPosition;
 	unsigned char 	_targetKeyframePosition;
 	unsigned char 	_previousKeyframePosition;
 	unsigned char	_keyframeMode;

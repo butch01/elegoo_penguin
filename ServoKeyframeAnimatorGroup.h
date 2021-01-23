@@ -16,13 +16,14 @@
 
 class ServoKeyframeAnimatorGroup {
 public:
-	ServoKeyframeAnimatorGroup(unsigned char numberOfServos);
+	ServoKeyframeAnimatorGroup();
 
 
 
 	virtual ~ServoKeyframeAnimatorGroup();
 
 	ServoKeyframeAnimator getServoKeyframeAnimator (unsigned char id);
+	void ServoKeyframeAnimatorGroup::init(unsigned char numberOfServos);
 
 	unsigned char getNumberOfServos();
 
@@ -42,10 +43,8 @@ private:
 	ServoKeyframeAnimator* 	_keyframeAnimators;
 	unsigned long 			_timePreviousKeyframe;
 	unsigned int            _duration;
-	// unsigned char			_numbeOfServos;
+	unsigned char			_numberOfServos;
 	bool 					_isInMove;
-
-
 };
 
 #endif /* SERVOKEYFRAMEANIMATORGROUP_H_ */

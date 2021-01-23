@@ -12,6 +12,7 @@
 
 ServoKeyframeAnimator::ServoKeyframeAnimator() {
 
+	Log.trace(F("ServoKeyframeAnimator::ServoKeyframeAnimator() start"CR));
 	_duration = 0;
 
 	// default for servos is center
@@ -20,8 +21,9 @@ ServoKeyframeAnimator::ServoKeyframeAnimator() {
 	_previousKeyframePosition=90;
 
 	// smooth mode is default. Its the only one which is implemented yet.
+	//this -> _keyframeMode = KEYFRAME_MODE_SMOOTH;
 	_keyframeMode = KEYFRAME_MODE_SMOOTH;
-	Log.trace(F("ServoKeyframeAnimator::ServoKeyframeAnimator() end: _duration=%l, _currentPosition=%d, _targetKeyframePosition=%d, _previousKeyframePosition=%d, _keyframeMode=%d" CR), _duration, _currentPosition, _targetKeyframePosition, _previousKeyframePosition, _keyframeMode );
+	Log.trace(F("ServoKeyframeAnimator::ServoKeyframeAnimator() end: _duration=%d, _currentPosition=%d, _targetKeyframePosition=%d, _previousKeyframePosition=%d, _keyframeMode=%d" CR), _duration, _currentPosition, _targetKeyframePosition, _previousKeyframePosition, _keyframeMode );
 
 }
 
@@ -103,6 +105,8 @@ unsigned char ServoKeyframeAnimator::getCalculatedServoPosition( unsigned long t
 {
 
 	#if DEBUG_SERVO_KEYFRAME_ANIMATOR_GET_CALCULATED_SERVO_POSITION == 1
+		DEBUG_SERIAL_NAME.print("_keyframeMode=");
+		DEBUG_SERIAL_NAME.println(_keyframeMode);
 		Log.trace(F("ServoKeyframeAnimator:getCalculatedServoPosition args timePrevKey=%l, targetDuration=%d (_keyframeMode=%d)"CR), timePrevKey, targetDuration,_keyframeMode);
 	#endif
 
@@ -121,7 +125,7 @@ unsigned char ServoKeyframeAnimator::getCalculatedServoPosition( unsigned long t
 		// map to servo position
 		servoPos = map(resultInFunction, 0, 2000, _previousKeyframePosition, _targetKeyframePosition);
 
-		Log.trace(F("ServoKeyframeAnimator:getCalculatedServoPosition timePrevKey=%d targetDuration=%d timeAbs=%d currentTimeInFunction=%d resultInFunction=%d servoPos=%d"CR), timePrevKey, targetDuration, currentTime, currentTimeInFunction,resultInFunction,servoPos );
+		Log.trace(F("ServoKeyframeAnimator:getCalculatedServoPosition timePrevKey=%l targetDuration=%d currentTime=%l currentTimeInFunction=%F resultInFunction=%F servoPos=%d"CR), timePrevKey, targetDuration, currentTime, currentTimeInFunction,resultInFunction,servoPos );
 	}
 	else
 	{

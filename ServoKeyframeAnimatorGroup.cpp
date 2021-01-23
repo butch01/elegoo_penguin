@@ -11,10 +11,11 @@
 #include <ArduinoLog.h>
 
 
-ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup(unsigned char numberOfServos)
+ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup()
 {
-	ServoKeyframeAnimator* _keyframeAnimators=NULL;
-	_keyframeAnimators = new ServoKeyframeAnimator[numberOfServos];
+	// initialize empty ServoKeyframeAnimator. Initialization will be done init procedure.
+	ServoKeyframeAnimator* _keyframeAnimators=0;
+	_numberOfServos=0;
 
 	// _numbeOfServos=numberOfServos;
 	_timePreviousKeyframe=0;
@@ -24,12 +25,38 @@ ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup(unsigned char numberOfSer
 //	Log.trace(F("ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup (numberOfServos=%d) - _timePreviousKeyframe=%l _isInMove=%T _duration=%d" CR), numberOfServos,_timePreviousKeyframe, _isInMove, _duration);
 }
 
+void ServoKeyframeAnimatorGroup::init(unsigned char numberOfServos)
+{
+	Log.verbose(F("ServoKeyframeAnimatorGroup::init - args numberOfServos=%d"CR ),numberOfServos);
+	_timePreviousKeyframe=0;
+	_isInMove=false;
+	_duration=0;
+	//_keyframeAnimators = new ServoKeyframeAnimator[numberOfServos];
+
+
+
+
+	// Allocation (let's suppose size contains some value discovered at runtime,
+	// e.g. obtained from some external source or through other program logic)
+	if (_keyframeAnimators != 0) {
+	    delete [] _keyframeAnimators;
+	}
+//	DEBUG_SERIAL_NAME.println("AAAAAAAAAAAAAAAAAAAAAAA");
+	_keyframeAnimators = new ServoKeyframeAnimator [numberOfServos];
+	_numberOfServos=numberOfServos;
+
+
+	Log.verbose(F("ServoKeyframeAnimatorGroup::init - numServos=%d=%d _timePreviousKeyframe=%d _isInMove=%T _duration=%d, "CR), getNumberOfServos(), numberOfServos, _timePreviousKeyframe, _isInMove, _duration );
+}
+
 /**
  * returns the number of servos
  */
 unsigned char ServoKeyframeAnimatorGroup::getNumberOfServos()
 {
-	return sizeof _keyframeAnimators ;
+	// return sizeof _keyframeAnimators  ;
+	 // return (sizeof(_keyframeAnimators)/sizeof(*_keyframeAnimators));
+	return _numberOfServos;
 }
 
 
@@ -96,7 +123,7 @@ void ServoKeyframeAnimatorGroup::calculateServoPositions()
 			Log.trace(F("ServoKeyframeAnimatorGroup::calculateServoPositions : time is up (%d > %d + %d = %d, set _isInMove=%T, setting servos to final position"CR), currentTime, _timePreviousKeyframe, _duration, _timePreviousKeyframe + _duration,  _isInMove);
 		#endif
 
-		for (unsigned char s=0; s < sizeof (_keyframeAnimators); s++)
+		for (unsigned char s=0; s < getNumberOfServos() ; s++)
 		{
 			_keyframeAnimators[s].setServoAbsolutePosition(_keyframeAnimators[s].getServoTargetPositon());
 		}
@@ -108,11 +135,16 @@ void ServoKeyframeAnimatorGroup::calculateServoPositions()
 		#endif
 
 		// time is not up, we are within the move. calculate the new servo position and set it as current position.
-		for (unsigned char s=0; s < sizeof _keyframeAnimators; s++)
+		for (unsigned char s=0; s < getNumberOfServos() ; s++)
 		{
 			_keyframeAnimators[s].setServoAbsolutePosition(_keyframeAnimators[s].getCalculatedServoPosition(_timePreviousKeyframe, _duration));
 		}
 	}
+
+
+//	#if DEBUG_SERVO_KEYFRAME_ANIMATOR_GROUP_CALCULATE_SERVO_POSITIONS == 1
+//		Log.trace(F("ServoKeyframeAnimatorGroup::calculateServoPositions : end. calculated Positions are: %d, %d, %d, &d set _isInMove=%T, setting servos to final position"CR), currentTime, _timePreviousKeyframe, _duration, _timePreviousKeyframe + _duration,  _isInMove);
+//	#endif
 }
 
 /**

@@ -7,9 +7,9 @@
 #include <FastCRC.h>
 #include "globalDefines.h"
 #include "ServoKeyframeAnimatorGroup.h"
+#include "ServoKeyframeAnimator.h"
 #include <ArduinoLog.h>
 #include <EnhancedServo.h>
-
 
 
 unsigned long packageNumber=0;
@@ -23,7 +23,9 @@ unsigned long packageNumber=0;
 
 
 
-ServoKeyframeAnimatorGroup keyframeServoGroupLegs(4);
+ServoKeyframeAnimatorGroup keyframeServoGroupLegs;
+
+
 //ServoKeyframeAnimatorGroup keyframeServoGroupLegs;
 
 #define NUMBER_OF_SERVOGROUPS 1
@@ -1600,6 +1602,12 @@ void setup()
 
     Log.notice(F("starting\n"));
 
+//     ServoKeyframeAnimator test;
+//    delay (10000);
+//    Serial.print(F("MEM: "));
+//    Serial.println(freeMemory());
+
+
     setupBLEHM10();
 
     // setup the default values, initialize arrays, ...
@@ -1607,7 +1615,8 @@ void setup()
 
     // setup the servos
     setupServos();
-
+//    Serial.print(F("MEM: "));
+//    Serial.println(freeMemory());
 
  //   keyframeServoGroupLegs = new ServoKeyframeAnimatorGroup(4);
 //    mp3Serial.begin(9600);
@@ -1632,6 +1641,12 @@ void setup()
 //    delays(2000);
 //    start();
     clearMessage();
+
+    keyframeServoGroupLegs.init(NUMBER_OF_SERVOGROUP_LEGS_SERVOS);
+    Log.trace("servoNum=%d duration=%d"CR,keyframeServoGroupLegs.getNumberOfServos(), keyframeServoGroupLegs.getMoveDuration());
+
+
+
 
 
 }
