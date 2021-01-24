@@ -10,6 +10,7 @@
 #include "ServoKeyframeAnimator.h"
 #include <ArduinoLog.h>
 #include <EnhancedServo.h>
+#include "MY1690_16S.h"
 
 
 unsigned long packageNumber=0;
@@ -18,12 +19,6 @@ unsigned long packageNumber=0;
 // 1 test, deactivate ble processing, just running test samples
 #define RUNMODE 1
 // vars for test mode
-
-
-
-
-
-
 
 
 //ServoKeyframeAnimatorGroup keyframeServoGroupLegs;
@@ -46,35 +41,31 @@ EnhancedServo servoGroupLegs[NUMBER_OF_SERVOGROUP_LEGS_SERVOS];
 
 /* Serial Bluetooth Communication Control Command Data Frame*/
 
-// Hand Tour APP Control Interface Left Domain Key
-#define BTN_UP    'f'
-#define BTN_DOWN  'b'
-#define BTN_LEFT  'l'
-#define BTN_RIGHT 'i'
-#define BTN_IDLE  's'
+//// Hand Tour APP Control Interface Left Domain Key
+//#define BTN_UP    'f'
+//#define BTN_DOWN  'b'
+//#define BTN_LEFT  'l'
+//#define BTN_RIGHT 'i'
+//#define BTN_IDLE  's'
+//
+//// Right Domain Key of Hand-Tour APP Control Interface
+//#define BTN_MUSIC    '1'
+//#define BTN_DANCE    '2'
+//#define BTN_OBSTACLE '3'
+//#define BTN_VOL_ADD  '4'
+//#define BTN_VOL_SUB  '5'
+//#define BTN_FOLLOW   '6'
+//
+//#define BTN_RR_ADD   '7'
+//#define BTN_RL_ADD   '8'
+//#define BTN_YR_ADD   '9'
+//#define BTN_YL_ADD   '0'
+//
+//#define BTN_RR_SUB   'a'
+//#define BTN_RL_SUB   'c'
+//#define BTN_YR_SUB   'd'
+//#define BTN_YL_SUB   'e'
 
-// Right Domain Key of Hand-Tour APP Control Interface
-#define BTN_MUSIC    '1'
-#define BTN_DANCE    '2'
-#define BTN_OBSTACLE '3'
-#define BTN_VOL_ADD  '4'
-#define BTN_VOL_SUB  '5'
-#define BTN_FOLLOW   '6'
-
-#define BTN_RR_ADD   '7'
-#define BTN_RL_ADD   '8'
-#define BTN_YR_ADD   '9'
-#define BTN_YL_ADD   '0'
-
-#define BTN_RR_SUB   'a'
-#define BTN_RL_SUB   'c'
-#define BTN_YR_SUB   'd'
-#define BTN_YL_SUB   'e'
-
-#define SERVO_YL 3
-#define SERVO_RL 1
-#define SERVO_YR 2
-#define SERVO_RR 0
 
 
 /*
@@ -89,6 +80,17 @@ RR 0==^   -----   ------  v== RL 1
          |-----   ------|
 */
 
+
+#define SERVO_YL 3
+#define SERVO_RL 1
+#define SERVO_YR 2
+#define SERVO_RR 0
+
+#define YL_PIN 10
+#define YR_PIN 9
+#define RL_PIN 12
+#define RR_PIN 6
+
 /* fine-tuning temporary storage variables*/
 signed char trim_rr;
 signed char trim_rl;
@@ -99,6 +101,8 @@ int addr_trim_rr = 0;
 int addr_trim_rl = 1;
 int addr_trim_yr = 2;
 int addr_trim_yl = 3;
+
+
 
 /* Hardware interface mapping*/
 
@@ -112,7 +116,7 @@ NeoSWSerial BLE_SERIAL_NAME(BLE_SERIAL_RX, BLE_SERIAL_TX);
 
 
 // movement
-unsigned long timePrevKey=0; // time when the move started
+//unsigned long timePrevKey=0; // time when the move started
 //bool isInMove=false; // if we are currently in a move
 
 // Protocol definition
@@ -158,13 +162,9 @@ FastCRC8 CRC8;
 #define AUDIO_SOFTWARE_RX A2 //Software implementation of serial interface (audio module driver interface)
 #define AUDIO_SOFTWARE_TX A3
 NeoSWSerial mp3Serial(AUDIO_SOFTWARE_RX, AUDIO_SOFTWARE_TX);
+MY1690_16S mp3Player( &mp3Serial);
 
 
-
-#define YL_PIN 10
-#define YR_PIN 9
-#define RL_PIN 12
-#define RR_PIN 6
 
 // seems not to be in use anymore
 //#define RECV_PIN 3
@@ -193,15 +193,13 @@ NeoSWSerial mp3Serial(AUDIO_SOFTWARE_RX, AUDIO_SOFTWARE_TX);
 #define LOW_RATE 1.0
 #define ULTRA_LOW_RATE 1.5
 
+//void Test_voltageMeasure(void);
 
-
-void Test_voltageMeasure(void);
-
-unsigned long moveTime;
-unsigned long ledBlinkTime;
+//unsigned long moveTime;
+//unsigned long ledBlinkTime;
 unsigned long voltageMeasureTime;
 unsigned long infraredMeasureTime;
-int LED_value = 255;
+unsigned char LED_value = 255;
 
 char danceNum = 0;
 double distance_value = 0;
@@ -235,7 +233,7 @@ enum BTMODE
     STOP,
 } BTmode = STOP; // Hand Tour APP Control Interface Left Domain Key
 
-unsigned char lastCommand=STOP;
+//unsigned char lastCommand=STOP;
 
 int musicIndex = 2;
 int musicNumber = 4;
@@ -250,134 +248,24 @@ double pause = 0;
 char irValue = '\0';
 bool serial_flag = false;
 
-
-bool delays(unsigned long ms)
-{
-    for (unsigned long i = 0; i < ms; i++)
-    {
-        if (serial_flag)
-        {
-            return true;
-        }
-        delay(1);
-    }
-    return false;
-}
+//
+//bool delays(unsigned long ms)
+//{
+//    for (unsigned long i = 0; i < ms; i++)
+//    {
+//        if (serial_flag)
+//        {
+//            return true;
+//        }
+//        delay(1);
+//    }
+//    return false;
+//}
 /*
    Implementation of MP3 Driver
-*/
-class MY1690_16S
-{
-public:
-    int volume;
-    String playStatus[5] = {"0", "1", "2", "3", "4"}; // STOP PLAYING PAUSE FF FR
+//*/
 
-    /* Music Playing Choice*/
-    void playSong(unsigned char num, unsigned char vol)
-    {
-        setVolume(vol);
-        setPlayMode(4);
-        CMD_SongSelet[4] = num;
-        checkCode(CMD_SongSelet);
-        mp3Serial.write(CMD_SongSelet, 7);
-        delay(50);
-    }
-    /* Get playback status*/
-    String getPlayStatus()
-    {
-        mp3Serial.write(CMD_getPlayStatus, 5);
-        delay(50);
-        return getStatus();
-    }
-    /* Get status*/
-    String getStatus()
-    {
-        String statusMp3 = "";
-        while (mp3Serial.available())
-        {
-            statusMp3 += (char)mp3Serial.read();
-        }
-        return statusMp3;
-    }
-    /* Stop broadcasting*/
-    void stopPlay()
-    {
-        setPlayMode(4);
-        mp3Serial.write(CMD_MusicStop, 5);
-        delay(50);
-    }
-    /* Volume setting*/
-    void setVolume(unsigned char vol)
-    {
-        CMD_VolumeSet[3] = vol;
-        checkCode(CMD_VolumeSet);
-        mp3Serial.write(CMD_VolumeSet, 6);
-        delay(50);
-    }
-    /* Voice Enhancement*/
-    void volumePlus()
-    {
-        mp3Serial.write(CMD_VolumePlus, 5);
-        delay(50);
-    }
-    /* Lower volume*/
-    void volumeDown()
-    {
-        mp3Serial.write(CMD_VolumeDown, 5);
-        delay(50);
-    }
 
-    void setPlayMode(unsigned char mode)
-    {
-        CMD_PlayMode[3] = mode;
-        checkCode(CMD_PlayMode);
-        mp3Serial.write(CMD_PlayMode, 6);
-        delay(50);
-    }
-
-    void checkCode(unsigned char *vs)
-    {
-        int val = vs[1];
-        int i;
-        for (i = 2; i < vs[1]; i++)
-        {
-            val = val ^ vs[i];
-        }
-        vs[i] = val;
-    }
-
-    void ampMode(int p, bool m)
-    {
-        pinMode(p, OUTPUT);
-        if (m)
-        {
-            digitalWrite(p, HIGH);
-        }
-        else
-        {
-            digitalWrite(p, LOW);
-        }
-    }
-
-    void init()
-    {
-        ampMode(HT6871_PIN, HIGH);
-        stopPlay();
-        volume = 15;
-    }
-
-private:
-    byte CMD_MusicPlay[5] = {0x7E, 0x03, 0x11, 0x12, 0xEF};
-    byte CMD_MusicStop[5] = {0x7E, 0x03, 0x1E, 0x1D, 0xEF};
-    byte CMD_MusicNext[5] = {0x7E, 0x03, 0x13, 0x10, 0xEF};
-    byte CMD_MusicPrev[5] = {0x7E, 0x03, 0x14, 0x17, 0xEF};
-    byte CMD_VolumePlus[5] = {0x7E, 0x03, 0x15, 0x16, 0xEF};
-    byte CMD_VolumeDown[5] = {0x7E, 0x03, 0x16, 0x15, 0xEF};
-    byte CMD_VolumeSet[6] = {0x7E, 0x04, 0x31, 0x00, 0x00, 0xEF};
-    byte CMD_PlayMode[6] = {0x7E, 0x04, 0x33, 0x00, 0x00, 0xEF};
-    byte CMD_SongSelet[7] = {0x7E, 0x05, 0x41, 0x00, 0x00, 0x00, 0xEF};
-    byte CMD_getPlayStatus[5] = {0x7E, 0x03, 0x20, 0x23, 0xEF};
-} mp3;
 //
 //bool oscillate(int A[4], int O[4], int T, double phase_diff[4])
 //{
@@ -2285,6 +2173,8 @@ unsigned char checkAndCorrectSpeedBounds(unsigned char speed)
 	return speed;
 
 }
+
+
 
 /**
  * function for move testing

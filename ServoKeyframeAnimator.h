@@ -23,8 +23,8 @@ public:
 
 
 	unsigned char getCalculatedServoPosition( 			// calculates position where the servo needs to be now.
-			unsigned long timePrevKey,
-			unsigned int targetDuration);
+	unsigned long timePrevKey,
+	unsigned int targetDuration);
 
 	void setServoPositionPreviousKeyframe(unsigned char previousPos);
 	void setServoPositionNextKeyframe(unsigned char targetPos);
