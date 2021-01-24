@@ -38,7 +38,7 @@ ServoKeyframeAnimator::~ServoKeyframeAnimator() {
 void ServoKeyframeAnimator::setKeyframeMode(unsigned char keyframeMode)
 {
 	_keyframeMode=keyframeMode;
-	Log.trace(F("ServoKeyframeAnimator::setKeyframeMode - set _keyframeMode=%d"CR), _keyframeMode);
+	//Log.trace(F("ServoKeyframeAnimator::setKeyframeMode - set _keyframeMode=%d"CR), _keyframeMode);
 }
 
 
@@ -50,6 +50,13 @@ void ServoKeyframeAnimator::setServoPositionNextKeyframe(unsigned char targetPos
 	_targetKeyframePosition = targetPos;
 }
 
+/**
+ * sets the previous keyframe position of the servo. This will be internally called, when a keyframe is passed
+ */
+void ServoKeyframeAnimator::setServoPositionPreviousKeyframe(unsigned char previousPos)
+{
+	_previousKeyframePosition = previousPos;
+}
 
 /**
  * sets the _currentPostion variable to an absolute value. Useful to have direct servo access within the same functionset.
@@ -125,7 +132,9 @@ unsigned char ServoKeyframeAnimator::getCalculatedServoPosition( unsigned long t
 		// map to servo position
 		servoPos = map(resultInFunction, 0, 2000, _previousKeyframePosition, _targetKeyframePosition);
 
-		Log.trace(F("ServoKeyframeAnimator:getCalculatedServoPosition timePrevKey=%l targetDuration=%d currentTime=%l currentTimeInFunction=%F resultInFunction=%F servoPos=%d"CR), timePrevKey, targetDuration, currentTime, currentTimeInFunction,resultInFunction,servoPos );
+		#if DEBUG_SERVO_KEYFRAME_ANIMATOR_GET_CALCULATED_SERVO_POSITION == 1
+			Log.trace(F("ServoKeyframeAnimator:getCalculatedServoPosition timePrevKey=%l targetDuration=%d currentTime=%l currentTimeInFunction=%F resultInFunction=%F servoPos=%d"CR), timePrevKey, targetDuration, currentTime, currentTimeInFunction,resultInFunction,servoPos );
+		#endif
 	}
 	else
 	{

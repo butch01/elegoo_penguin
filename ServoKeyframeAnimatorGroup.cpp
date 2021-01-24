@@ -49,6 +49,17 @@ void ServoKeyframeAnimatorGroup::init(unsigned char numberOfServos)
 	Log.verbose(F("ServoKeyframeAnimatorGroup::init - numServos=%d=%d _timePreviousKeyframe=%d _isInMove=%T _duration=%d, "CR), getNumberOfServos(), numberOfServos, _timePreviousKeyframe, _isInMove, _duration );
 }
 
+
+ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup(ServoKeyframeAnimator* keyframeAnimators, unsigned char numberOfServos)
+{
+	Log.verbose(F("ServoKeyframeAnimatorGroup (ServoKeyframeAnimator)"CR ));
+	_timePreviousKeyframe=0;
+	_isInMove=false;
+	_duration=0;
+	_keyframeAnimators=keyframeAnimators;
+	_numberOfServos=numberOfServos;
+	}
+
 /**
  * returns the number of servos
  */
@@ -126,6 +137,7 @@ void ServoKeyframeAnimatorGroup::calculateServoPositions()
 		for (unsigned char s=0; s < getNumberOfServos() ; s++)
 		{
 			_keyframeAnimators[s].setServoAbsolutePosition(_keyframeAnimators[s].getServoTargetPositon());
+			_keyframeAnimators[s].setServoPositionPreviousKeyframe(_keyframeAnimators[s].getServoTargetPositon());
 		}
 	}
 	else
@@ -171,7 +183,7 @@ void ServoKeyframeAnimatorGroup::setServoPositionNextKeyframeById (unsigned char
  */
 void ServoKeyframeAnimatorGroup::setServoPositionsNextKeyframe (unsigned char* targetPositions)
 {
-	for (unsigned char s=0; s < sizeof targetPositions; s++)
+	for (unsigned char s=0; s < _numberOfServos; s++)
 	{
 		_keyframeAnimators[s].setServoPositionNextKeyframe(targetPositions[s]);
 	}

@@ -26,7 +26,9 @@ public:
 			unsigned long timePrevKey,
 			unsigned int targetDuration);
 
+	void setServoPositionPreviousKeyframe(unsigned char previousPos);
 	void setServoPositionNextKeyframe(unsigned char targetPos);
+
 
 
 	void setServoAbsolutePosition(unsigned char absolutePos);

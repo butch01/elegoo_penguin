@@ -17,13 +17,14 @@
 class ServoKeyframeAnimatorGroup {
 public:
 	ServoKeyframeAnimatorGroup();
-
+	ServoKeyframeAnimatorGroup(ServoKeyframeAnimator* keyframeAnimators, unsigned char numberOfServos);
 
 
 	virtual ~ServoKeyframeAnimatorGroup();
 
 	ServoKeyframeAnimator getServoKeyframeAnimator (unsigned char id);
 	void ServoKeyframeAnimatorGroup::init(unsigned char numberOfServos);
+
 
 	unsigned char getNumberOfServos();
 
