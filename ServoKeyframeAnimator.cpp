@@ -9,6 +9,7 @@
 #include <arduino.h>
 #include "globalDefines.h"
 #include <ArduinoLog.h>
+#include "moveConstants.h"
 
 ServoKeyframeAnimator::ServoKeyframeAnimator() {
 

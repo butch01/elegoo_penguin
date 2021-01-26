@@ -50,7 +50,7 @@ void ServoKeyframeAnimatorGroup::init(unsigned char numberOfServos)
 }
 
 
-ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup(ServoKeyframeAnimator* keyframeAnimators, unsigned char numberOfServos)
+ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup(ServoKeyframeAnimator* keyframeAnimators, EnhancedServo* servos, unsigned char numberOfServos)
 {
 	Log.verbose(F("ServoKeyframeAnimatorGroup (ServoKeyframeAnimator)"CR ));
 	_timePreviousKeyframe=0;
@@ -58,6 +58,7 @@ ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup(ServoKeyframeAnimator* ke
 	_duration=0;
 	_keyframeAnimators=keyframeAnimators;
 	_numberOfServos=numberOfServos;
+	_servos = servos;
 	}
 
 /**
@@ -67,6 +68,7 @@ unsigned char ServoKeyframeAnimatorGroup::getNumberOfServos()
 {
 	// return sizeof _keyframeAnimators  ;
 	 // return (sizeof(_keyframeAnimators)/sizeof(*_keyframeAnimators));
+	Log.trace(F("ServoKeyframeAnimatorGroup::getNumberOfServos %d=%d"CR), _numberOfServos, sizeof _servos / sizeof (_servos[0]));
 	return _numberOfServos;
 }
 
@@ -197,4 +199,18 @@ void ServoKeyframeAnimatorGroup::setServoPositionsNextKeyframe (unsigned char* t
 bool ServoKeyframeAnimatorGroup::isInMove()
 {
 	return _isInMove;
+}
+
+
+/**
+ * moves the linked servos of the group to its calculated positions.
+ * calculation needs to be called before!
+ */
+void ServoKeyframeAnimatorGroup::driveServosToCalculatedPosition()
+{
+	for (unsigned char i=0; i < getNumberOfServos(); i++)
+	{
+		//_servos[i].enhancedWrite(_keyframeAnimators.getCalculatedServoPositionById(i) , 0, 180);
+		_servos[i].enhancedWrite(getCalculatedServoPositionById(i), 0, 180);
+	}
 }

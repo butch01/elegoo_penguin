@@ -13,11 +13,12 @@
 #define SERVOKEYFRAMEANIMATORGROUP_H_
 
 #include "ServoKeyframeAnimator.h"
+#include <EnhancedServo.h>
 
 class ServoKeyframeAnimatorGroup {
 public:
 	ServoKeyframeAnimatorGroup();
-	ServoKeyframeAnimatorGroup(ServoKeyframeAnimator* keyframeAnimators, unsigned char numberOfServos);
+	ServoKeyframeAnimatorGroup(ServoKeyframeAnimator* keyframeAnimators, EnhancedServo* servos, unsigned char numberOfServos);
 
 
 	virtual ~ServoKeyframeAnimatorGroup();
@@ -40,12 +41,15 @@ public:
 
 	bool isInMove();
 
+	void driveServosToCalculatedPosition();
+
 private:
 	ServoKeyframeAnimator* 	_keyframeAnimators;
 	unsigned long 			_timePreviousKeyframe;
 	unsigned int            _duration;
 	unsigned char			_numberOfServos;
 	bool 					_isInMove;
+	EnhancedServo*          _servos;
 };
 
 #endif /* SERVOKEYFRAMEANIMATORGROUP_H_ */

@@ -8,11 +8,11 @@
 #ifndef SERVOKEYFRAMEANIMATOR_H_
 #define SERVOKEYFRAMEANIMATOR_H_
 
-#define KEYFRAME_MODE_ABSOLUTE 0 // absolute control for direct servo access
-#define KEYFRAME_MODE_SMOOTH 1 // smooth start / stop
-#define KEYFRAME_MODE_LINEAR 2 // linear movement, sudden start / stop at / from full speed
-#define KEYFRAME_MODE_SMOOTH_START 3 // only smooth start, sudden_stop
-#define KEYFRAME_MODE_SMOOTH_STOP 4 // only smooth start, sudden_stop
+//#define KEYFRAME_MODE_ABSOLUTE 0 // absolute control for direct servo access
+//#define KEYFRAME_MODE_SMOOTH 1 // smooth start / stop
+//#define KEYFRAME_MODE_LINEAR 2 // linear movement, sudden start / stop at / from full speed
+//#define KEYFRAME_MODE_SMOOTH_START 3 // only smooth start, sudden_stop
+//#define KEYFRAME_MODE_SMOOTH_STOP 4 // only smooth start, sudden_stop
 
 
 
