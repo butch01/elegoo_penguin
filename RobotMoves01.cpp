@@ -8,6 +8,7 @@
 #include "RobotMoves01.h"
 #include <arduino.h>
 #include "moveConstants.h"
+#include <ArduinoLog.h>
 
 RobotMoves01::RobotMoves01() {
 	// TODO Auto-generated constructor stub
@@ -36,12 +37,12 @@ RobotMoves01::~RobotMoves01() {
 
 
 /**
- * returns the continuation mode. Default is KEYFRAME_MODE_SMOOTH
+ * returns the continuation mode. Default is ITERATION_MODE_LOOP
  */
 unsigned char RobotMoves01::getContinuationMode(unsigned char moveId)
 {
 	// smooth as default
-	unsigned char continuationMode = KEYFRAME_MODE_SMOOTH;
+	unsigned char continuationMode = ITERATION_CONTINUATION_MODE_LOOP;
 
 
 	return continuationMode;
@@ -51,16 +52,24 @@ unsigned char RobotMoves01::getContinuationMode(unsigned char moveId)
  * transfers the keyframe configuration of a specific move[iteration] to a target array.
  * keyframe has following format [time in 0.01 sec;servoPos0; servoPos1; servoPos2; servoPos3)
  * time example: value 200 means 200 * 0.01s = 2s. 10 = 0.1s
+ *
+ * moveId - ID of move
+ * iteration - the iteration to return
+ * targetMove - Reference if the array where to copy the move's iteration to
  */
-void RobotMoves01::getKeyframe(unsigned char moveId, unsigned char iteration, unsigned char* &targetMove)
+void RobotMoves01::getKeyframe(unsigned char moveId, unsigned char iteration, unsigned char* targetMove)
 {
+
+	// Log.trace(F("RobotMoves01::getKeyframe args moveId=%d, iteration=%d, targetMoveAddr=%X, targetMove[0]=%d, targetMove[1]=%d" CR ), moveId, iteration, &targetMove, targetMove[0], targetMove[1]);
+
+
 	if (moveId == MOVE_01_CENTER)
 	{
 		unsigned char move[][5] =
 		{
 				{100,90,90,90,90}
 		};
-		memcpy(move, targetMove, sizeof move);
+		memcpy(targetMove, move[iteration], sizeof move[iteration]);
 	}
 	else if (moveId == MOVE_01_WALKFORWARD)
 	{
@@ -73,18 +82,30 @@ void RobotMoves01::getKeyframe(unsigned char moveId, unsigned char iteration, un
 			{100, 90 - 40, 90 - 30, 90 - 15, 90 - 15},
 			{100, 90 - 20, 90 - 20, 90 + 15, 90 + 15}
 		};
-		memcpy(move[iteration], targetMove, sizeof move[iteration]);
+		memcpy(targetMove, move[iteration], sizeof move[iteration]);
 	}
 	else if (moveId == MOVE_01_TEST)
 	{
 		unsigned char move[4][5] =
 		{
-			{100, 90, 90, 90, 90},
-			{100, 90-80, 90, 90, 90},
-			{100, 90, 90, 90, 90},
-			{100, 90+80, 90, 90, 90}
+			{100, 90,    90,    90, 90},
+			{100, 90,    90-80, 90, 90},
+			{100, 90,    90,    90, 90},
+			{100, 90,    90+80, 90, 90}
 		};
-		memcpy(move[iteration], targetMove, sizeof move[iteration]);
+		memcpy(targetMove, move[iteration], sizeof move[iteration]);
+	}
+	else if (moveId == MOVE_DEBUG_SINGLE_ARRAY)
+	{
+		// Log.trace(F("RobotMoves01::getKeyframe - in Move MOVE_DEBUG_SINGLE_ARRAY" CR));
+		unsigned char move[2][2] =
+		{
+				{100,10},
+				{100,170}
+		};
+		// Log.trace(F("RobotMoves01::getKeyframe move[%d]=%d %d target=%d %d" CR ), iteration, move[iteration][0], move[iteration][1], targetMove[0], targetMove[1]);
+		memcpy(targetMove, move[iteration], sizeof move[iteration]);
+		// Log.trace(F("RobotMoves01::getKeyframe move[%d]=%d %d target=%d %d" CR ), iteration, move[iteration][0], move[iteration][1], targetMove[0], targetMove[1]);
 	}
 }
 
@@ -95,42 +116,42 @@ void RobotMoves01::getKeyframe(unsigned char moveId, unsigned char iteration, un
 //	 return (unsigned char) (sizeof getMove(moveId)[0] / sizeof getMove(moveId)[0][0]) -1;
 //}
 
-
-
-/**
- * returns a the reference to the move object.
- * Hint: Will it drain the memory with the always new?
- */
-void RobotMoves01::getMoveToBuffer(unsigned char moveId)
-{
-
-
-	if (moveId == MOVE_01_CENTER)
-	{
-
-		unsigned char move[1][5]=
-		{
-			{100,90,90,90,90}
-
-		};
-
-		memcpy(move, _moveBuffer, sizeof (move) );
-	}
-
-	if (moveId == MOVE_01_WALKFORWARD)
-	{
-		unsigned char move[6][5] =
-		{
-			{100, 90, 90 + 35, 90 + 15, 90 + 15},
-			{100, 90 + 25, 90 + 30, 90 + 15, 90 + 15},
-			{100, 90 + 20, 90 + 20, 90 - 15, 90 - 15},
-			{100, 90 - 35, 90, 90 - 15, 90 - 15},
-			{100, 90 - 40, 90 - 30, 90 - 15, 90 - 15},
-			{100, 90 - 20, 90 - 20, 90 + 15, 90 + 15}
-		};
-
-	}
-}
+//
+//
+///**
+// * returns a the reference to the move object.
+// * Hint: Will it drain the memory with the always new?
+// */
+//void RobotMoves01::getMoveToBuffer(unsigned char moveId)
+//{
+//
+//
+//	if (moveId == MOVE_01_CENTER)
+//	{
+//
+//		unsigned char move[1][5]=
+//		{
+//			{100,90,90,90,90}
+//
+//		};
+//
+//		memcpy(move, _moveBuffer, sizeof (move) );
+//	}
+//
+//	if (moveId == MOVE_01_WALKFORWARD)
+//	{
+//		unsigned char move[6][5] =
+//		{
+//			{100, 90, 90 + 35, 90 + 15, 90 + 15},
+//			{100, 90 + 25, 90 + 30, 90 + 15, 90 + 15},
+//			{100, 90 + 20, 90 + 20, 90 - 15, 90 - 15},
+//			{100, 90 - 35, 90, 90 - 15, 90 - 15},
+//			{100, 90 - 40, 90 - 30, 90 - 15, 90 - 15},
+//			{100, 90 - 20, 90 - 20, 90 + 15, 90 + 15}
+//		};
+//
+//	}
+//}
 
 
 
@@ -153,6 +174,8 @@ unsigned char RobotMoves01::getNumberOfIterations(unsigned char moveId )
 	case MOVE_01_TEST:
 		iterationCount=4;
 		break;
+	case MOVE_DEBUG_SINGLE_ARRAY:
+		iterationCount=2;
 	}
 
 	return iterationCount;

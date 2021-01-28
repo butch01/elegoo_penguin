@@ -19,19 +19,21 @@ public:
 	RobotMoves01();
 	virtual ~RobotMoves01();
 
-	unsigned char*  getKeyframe(unsigned char moveId, unsigned char iteration);
-	unsigned char   getNumberOfServosUsed(unsigned char moveId);
-	void getMoveToBuffer(unsigned char moveId);
+
+// 	unsigned char   getNumberOfServosUsed(unsigned char moveId);
+//	void getMoveToBuffer(unsigned char moveId);
 
 
 	unsigned char getNumberOfIterations(unsigned char moveId );
 	unsigned char getContinuationMode(unsigned char moveId);
-private:
-	unsigned char* getKeyframeByIdWalkForward(unsigned int id);
-	unsigned char getNumberOfKeyframeIterationsWalkForward();
-	unsigned char* getKeyframeByIDCenter(unsigned int id);
+	void getKeyframe(unsigned char moveId, unsigned char iteration, unsigned char* targetMove);
 
-	void getKeyframe(unsigned char moveId, unsigned char iteration, unsigned char* &targetMove);
+private:
+//	unsigned char* getKeyframeByIdWalkForward(unsigned int id);
+//	unsigned char getNumberOfKeyframeIterationsWalkForward();
+//	unsigned char* getKeyframeByIDCenter(unsigned int id);
+
+
 
 
 	unsigned char _moveBuffer[MOVE_BUFFER_ARRAY_ITERATIONS][MOVE_BUFFER_ARRAY_ELEMENTS];

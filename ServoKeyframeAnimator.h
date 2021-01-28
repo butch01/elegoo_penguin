@@ -38,6 +38,9 @@ public:
 	unsigned char getServoCurrentPositon();
 
 	void setKeyframeMode(unsigned char keyframeMode);
+	unsigned char getKeyframeMode();
+
+	unsigned int getKeyframeModeAddress();
 
 
 private:

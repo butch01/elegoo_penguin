@@ -13,40 +13,51 @@
 
 ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup()
 {
-	// initialize empty ServoKeyframeAnimator. Initialization will be done init procedure.
-	ServoKeyframeAnimator* _keyframeAnimators=0;
-	_numberOfServos=0;
+	// do nothing. Wait for init call
 
-	// _numbeOfServos=numberOfServos;
-	_timePreviousKeyframe=0;
-	_isInMove=false;
-	_duration=0;
+
+	// initialize empty ServoKeyframeAnimator. Initialization will be done init procedure.
+//	//ServoKeyframeAnimator* _keyframeAnimators=0;
+//	_numberOfServos=0;
+//
+//	// _numbeOfServos=numberOfServos;
+//	_timePreviousKeyframe=0;
+//	_isInMove=false;
+//	_duration=0;
 
 //	Log.trace(F("ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup (numberOfServos=%d) - _timePreviousKeyframe=%l _isInMove=%T _duration=%d" CR), numberOfServos,_timePreviousKeyframe, _isInMove, _duration);
 }
 
-void ServoKeyframeAnimatorGroup::init(unsigned char numberOfServos)
+void ServoKeyframeAnimatorGroup::init(ServoKeyframeAnimator* keyframeAnimators, EnhancedServo* servos, unsigned char numberOfServos)
 {
 	Log.verbose(F("ServoKeyframeAnimatorGroup::init - args numberOfServos=%d"CR ),numberOfServos);
-	_timePreviousKeyframe=0;
-	_isInMove=false;
-	_duration=0;
-	//_keyframeAnimators = new ServoKeyframeAnimator[numberOfServos];
+
+		_timePreviousKeyframe=0;
+		_isInMove=false;
+		_duration=0;
+		_keyframeAnimators=keyframeAnimators;
+		_numberOfServos=numberOfServos;
+		_servos = servos;
+
+//	_timePreviousKeyframe=0;
+//	_isInMove=false;
+//	_duration=0;
+//	//_keyframeAnimators = new ServoKeyframeAnimator[numberOfServos];
+//
+//
+//
+//
+//	// Allocation (let's suppose size contains some value discovered at runtime,
+//	// e.g. obtained from some external source or through other program logic)
+//	if (_keyframeAnimators != 0) {
+//	    delete [] _keyframeAnimators;
+//	}
+////	DEBUG_SERIAL_NAME.println("AAAAAAAAAAAAAAAAAAAAAAA");
+//	_keyframeAnimators = new ServoKeyframeAnimator [numberOfServos];
+//	_numberOfServos=numberOfServos;
 
 
-
-
-	// Allocation (let's suppose size contains some value discovered at runtime,
-	// e.g. obtained from some external source or through other program logic)
-	if (_keyframeAnimators != 0) {
-	    delete [] _keyframeAnimators;
-	}
-//	DEBUG_SERIAL_NAME.println("AAAAAAAAAAAAAAAAAAAAAAA");
-	_keyframeAnimators = new ServoKeyframeAnimator [numberOfServos];
-	_numberOfServos=numberOfServos;
-
-
-	Log.verbose(F("ServoKeyframeAnimatorGroup::init - numServos=%d=%d _timePreviousKeyframe=%d _isInMove=%T _duration=%d, "CR), getNumberOfServos(), numberOfServos, _timePreviousKeyframe, _isInMove, _duration );
+	Log.verbose(F("ServoKeyframeAnimatorGroup::init - numServos=%d=%d _timePreviousKeyframe=%d _isInMove=%T _duration=%d, "CR), getNumberOfServos(), _numberOfServos, _timePreviousKeyframe, _isInMove, _duration );
 }
 
 
@@ -68,7 +79,7 @@ unsigned char ServoKeyframeAnimatorGroup::getNumberOfServos()
 {
 	// return sizeof _keyframeAnimators  ;
 	 // return (sizeof(_keyframeAnimators)/sizeof(*_keyframeAnimators));
-	Log.trace(F("ServoKeyframeAnimatorGroup::getNumberOfServos %d=%d"CR), _numberOfServos, sizeof _servos / sizeof (_servos[0]));
+	// Log.trace(F("ServoKeyframeAnimatorGroup::getNumberOfServos %d=%d"CR), _numberOfServos, sizeof _servos / sizeof (_servos[0]));
 	return _numberOfServos;
 }
 
@@ -185,9 +196,17 @@ void ServoKeyframeAnimatorGroup::setServoPositionNextKeyframeById (unsigned char
  */
 void ServoKeyframeAnimatorGroup::setServoPositionsNextKeyframe (unsigned char* targetPositions)
 {
+
 	for (unsigned char s=0; s < _numberOfServos; s++)
 	{
 		_keyframeAnimators[s].setServoPositionNextKeyframe(targetPositions[s]);
+
+	}
+
+	Log.trace(F("ServoKeyframeAnimatorGroup::setServoPositionsNextKeyframe: array is updated to: "));
+	for (unsigned char s=0; s < _numberOfServos; s++)
+	{
+		Log.trace(F("%d "), _keyframeAnimators[s].getServoTargetPositon());
 	}
 }
 
@@ -198,6 +217,7 @@ void ServoKeyframeAnimatorGroup::setServoPositionsNextKeyframe (unsigned char* t
  */
 bool ServoKeyframeAnimatorGroup::isInMove()
 {
+	Log.trace(F("ServoKeyframeAnimatorGroup::isInMove() - returning %T" CR), _isInMove);
 	return _isInMove;
 }
 
@@ -211,6 +231,8 @@ void ServoKeyframeAnimatorGroup::driveServosToCalculatedPosition()
 	for (unsigned char i=0; i < getNumberOfServos(); i++)
 	{
 		//_servos[i].enhancedWrite(_keyframeAnimators.getCalculatedServoPositionById(i) , 0, 180);
+
 		_servos[i].enhancedWrite(getCalculatedServoPositionById(i), 0, 180);
+		Log.trace(F("ServoKeyframeAnimatorGroup::driveServosToCalculatedPosition -> servo[%d]=%d" CR), i,getCalculatedServoPositionById(i) );
 	}
 }

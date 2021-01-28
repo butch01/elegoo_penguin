@@ -24,7 +24,8 @@ public:
 	virtual ~ServoKeyframeAnimatorGroup();
 
 	ServoKeyframeAnimator getServoKeyframeAnimator (unsigned char id);
-	void ServoKeyframeAnimatorGroup::init(unsigned char numberOfServos);
+	void ServoKeyframeAnimatorGroup::init(ServoKeyframeAnimator* keyframeAnimators, EnhancedServo* servos, unsigned char numberOfServos);
+
 
 
 	unsigned char getNumberOfServos();

@@ -32,14 +32,24 @@ ServoKeyframeAnimator::~ServoKeyframeAnimator() {
 	// TODO Auto-generated destructor stub
 }
 
-
+unsigned int ServoKeyframeAnimator::getKeyframeModeAddress()
+{
+	return &_keyframeMode;
+}
 /**
  * set keyframeMode
  */
 void ServoKeyframeAnimator::setKeyframeMode(unsigned char keyframeMode)
 {
 	_keyframeMode=keyframeMode;
-	//Log.trace(F("ServoKeyframeAnimator::setKeyframeMode - set _keyframeMode=%d"CR), _keyframeMode);
+//	Log.trace(F("ServoKeyframeAnimator::setKeyframeMode - set _keyframeMode=%d"CR), _keyframeMode);
+}
+
+
+unsigned char ServoKeyframeAnimator::getKeyframeMode()
+{
+	return _keyframeMode;
+
 }
 
 
