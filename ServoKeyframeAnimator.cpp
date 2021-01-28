@@ -23,7 +23,7 @@ ServoKeyframeAnimator::ServoKeyframeAnimator() {
 
 	// smooth mode is default. Its the only one which is implemented yet.
 	//this -> _keyframeMode = KEYFRAME_MODE_SMOOTH;
-	_keyframeMode = KEYFRAME_MODE_SMOOTH;
+	_keyframeMode = 66;
 	Log.trace(F("ServoKeyframeAnimator::ServoKeyframeAnimator() end: _duration=%d, _currentPosition=%d, _targetKeyframePosition=%d, _previousKeyframePosition=%d, _keyframeMode=%d" CR), _duration, _currentPosition, _targetKeyframePosition, _previousKeyframePosition, _keyframeMode );
 
 }

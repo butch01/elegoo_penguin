@@ -28,6 +28,7 @@ ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup()
 //	Log.trace(F("ServoKeyframeAnimatorGroup::ServoKeyframeAnimatorGroup (numberOfServos=%d) - _timePreviousKeyframe=%l _isInMove=%T _duration=%d" CR), numberOfServos,_timePreviousKeyframe, _isInMove, _duration);
 }
 
+
 void ServoKeyframeAnimatorGroup::init(ServoKeyframeAnimator* keyframeAnimators, EnhancedServo* servos, unsigned char numberOfServos)
 {
 	Log.verbose(F("ServoKeyframeAnimatorGroup::init - args numberOfServos=%d"CR ),numberOfServos);
@@ -87,11 +88,16 @@ unsigned char ServoKeyframeAnimatorGroup::getNumberOfServos()
 /**
  * this returns a child ServoKeyframeAnimator. ID is the position in the array
  */
-ServoKeyframeAnimator ServoKeyframeAnimatorGroup::getServoKeyframeAnimator (unsigned char id)
+ServoKeyframeAnimator *ServoKeyframeAnimatorGroup::getServoKeyframeAnimator (unsigned char id)
 {
-	return _keyframeAnimators[id];
+	return &_keyframeAnimators[id];
 }
 
+
+unsigned char ServoKeyframeAnimatorGroup::getKeyframeAnimatorKeyframeMode (unsigned char id)
+{
+	return _keyframeAnimators[id].getKeyframeMode();
+}
 
 ServoKeyframeAnimatorGroup::~ServoKeyframeAnimatorGroup() {
 	// TODO Auto-generated destructor stub

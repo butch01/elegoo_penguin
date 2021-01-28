@@ -37,6 +37,8 @@ EnhancedServo servosLegs[NUMBER_OF_SERVOGROUP_LEGS_SERVOS];
 //ServoKeyframeAnimatorGroup keyframeServoGroupLegs(keyframeAnimatorLegs, servoGroupLegs, NUMBER_OF_SERVOGROUP_LEGS_SERVOS);
 ServoKeyframeAnimatorGroup servoGroups[NUMBER_OF_SERVOGROUPS];
 
+//Relay *relays[RELAY_ARRAY_SIZE] = { &myRelay };
+
 
 RobotMoves01 movesLegs4Servos;
 
@@ -1449,10 +1451,12 @@ void setupDefaultValues()
 void setupServos()
 {
 	Log.notice(F("setup servos..." CR));
-	for (unsigned char i; i< sizeof servosLegs; i++)
+	for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
 	{
 		servosLegs[i].setMaxValue(180);
 		servosLegs[i].setMinValue(0);
+		Log.error(" servos [%d], min %d max %d" CR, i, servosLegs[i].getMinValue(), servosLegs[i].getMaxValue());
+
 	}
 
 	servoInit();
@@ -1545,9 +1549,53 @@ void setup()
 //    start();
     clearMessage();
 
+
+//    for (unsigned int i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+//    {
+//    	keyframeAnimatorLegs[i].setKeyframeMode(5+i);
+//    	Log.error("keyframe[%d] is set to %d" CR, i, 5+i);
+//
+//    }
+
+
+    for (unsigned int i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+	{
+		;
+		Log.error("keyframe[%d] is has value to %d" CR, i, keyframeAnimatorLegs[i].getKeyframeMode() );
+	}
+
     servoGroups[SERVO_GROUP_LEGS].init(keyframeAnimatorLegs, servosLegs, NUMBER_OF_SERVOGROUP_LEGS_SERVOS);
+//
+//
+//	for (unsigned int i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+//	{
+//		//keyframeAnimatorLegs[i].setKeyframeMode(5+i);
+//		servoGroups[0].getServoKeyframeAnimator(i)->setKeyframeMode(10+i);
+//		Log.error("keyframe[%d] is set to %d" CR, i, 10+i);
+//
+//	}
+//    for (unsigned int i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+//	{
+//		;
+//		Log.error("keyframe[%d]  has value of %d" CR, i, keyframeAnimatorLegs[i].getKeyframeMode() );
+//	}
+//
+//
+//    for (unsigned int i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+//    {
+//    	Log.error("debug keyframemode [%d] = %d" CR, i, servoGroups[SERVO_GROUP_LEGS].getKeyframeAnimatorKeyframeMode(i));
+//    }
+//
+
+    for (unsigned int i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+    {
+//    	servoGroups[SERVO_GROUP_LEGS].set
+    	Log.error("debug keyframemode [%d] = %d" CR, i, servoGroups[SERVO_GROUP_LEGS].getKeyframeAnimatorKeyframeMode(i));
+	}
 
 
+
+    //(ServoKeyframeAnimator) servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)
 
     //servoGroups[SERVO_GROUP_LEGS]= new ServoKeyframeAnimatorGroup(keyframeAnimatorLegs, servosLegs, NUMBER_OF_SERVOGROUP_LEGS_SERVOS);
     //servoGroups[SERVO_GROUP_LEGS].init(NUMBER_OF_SERVOGROUP_LEGS_SERVOS);
@@ -1555,8 +1603,8 @@ void setup()
     Log.trace("servoNum=%d duration=%d" CR, servoGroups[SERVO_GROUP_LEGS].getNumberOfServos(), servoGroups[SERVO_GROUP_LEGS].getMoveDuration());
 
 
-    Log.trace("adresses keyframeAnimatorLegs %d, keyframeAnimatorLegs[0]=%d keyframeAnimatorLegs[1]=%d, keyframeAnimatorLegs[2]=%d, keyframeAnimatorLegs[3]=%d" CR, &keyframeAnimatorLegs, &keyframeAnimatorLegs[0],&keyframeAnimatorLegs[1],&keyframeAnimatorLegs[2], &keyframeAnimatorLegs[3]);
-    Log.trace("adresses keyframemmode [0]=%d [1]=%d, [2]=%d, [3]=%d" CR, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(0).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(1).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(2).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(3).getKeyframeModeAddress());
+    //Log.trace("adresses keyframeAnimatorLegs %d, keyframeAnimatorLegs[0]=%d keyframeAnimatorLegs[1]=%d, keyframeAnimatorLegs[2]=%d, keyframeAnimatorLegs[3]=%d" CR, &keyframeAnimatorLegs, &keyframeAnimatorLegs[0],&keyframeAnimatorLegs[1],&keyframeAnimatorLegs[2], &keyframeAnimatorLegs[3]);
+    //Log.trace("adresses keyframemmode [0]=%d [1]=%d, [2]=%d, [3]=%d" CR, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(0).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(1).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(2).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(3).getKeyframeModeAddress());
 
 
 
@@ -2252,7 +2300,7 @@ void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int 
 			for (unsigned int i=0; i< servoGroups[servoGroupId].getNumberOfServos(); i++)
 			{
 				Log.trace("[%d]=%d ",i, KEYFRAME_MODE_SMOOTH);
-				servoGroups[servoGroupId].getServoKeyframeAnimator(i).setKeyframeMode(KEYFRAME_MODE_SMOOTH);
+				servoGroups[servoGroupId].getServoKeyframeAnimator(i)->setKeyframeMode(KEYFRAME_MODE_SMOOTH);
 			}
 			Log.trace("\n");
 		}
@@ -2260,7 +2308,7 @@ void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int 
 		Log.trace("getting keyframemmode:");
 		for (unsigned int i=0; i< servoGroups[servoGroupId].getNumberOfServos(); i++)
 		{
-			Log.trace("[%d]=%d ",i, servoGroups[servoGroupId].getServoKeyframeAnimator(i).getKeyframeMode()) ;
+			Log.trace("[%d]=%d ",i, servoGroups[servoGroupId].getServoKeyframeAnimator(i)->getKeyframeMode()) ;
 		}
 		Log.trace("\n");
 
@@ -2273,7 +2321,7 @@ void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int 
 //			servoGroupLegs[i].enhancedWrite(keyframeServoGroupLegs.getCalculatedServoPositionById(i) , 0, 180);
 //		}
 		servoGroups[servoGroupId].driveServosToCalculatedPosition();
-		Log.trace("adresses keyframemmode [0]=%d [1]=%d, [2]=%d, [3]=%d" CR, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(0).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(1).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(2).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(3).getKeyframeModeAddress());
+//		Log.trace("adresses keyframemmode [0]=%d [1]=%d, [2]=%d, [3]=%d" CR, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(0).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(1).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(2).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(3).getKeyframeModeAddress());
 
 
 }

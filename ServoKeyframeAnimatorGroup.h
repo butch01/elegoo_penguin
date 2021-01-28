@@ -23,7 +23,7 @@ public:
 
 	virtual ~ServoKeyframeAnimatorGroup();
 
-	ServoKeyframeAnimator getServoKeyframeAnimator (unsigned char id);
+	ServoKeyframeAnimator *getServoKeyframeAnimator (unsigned char id);
 	void ServoKeyframeAnimatorGroup::init(ServoKeyframeAnimator* keyframeAnimators, EnhancedServo* servos, unsigned char numberOfServos);
 
 
@@ -43,6 +43,9 @@ public:
 	bool isInMove();
 
 	void driveServosToCalculatedPosition();
+
+	unsigned char getKeyframeAnimatorKeyframeMode (unsigned char id);
+
 
 private:
 	ServoKeyframeAnimator* 	_keyframeAnimators;
