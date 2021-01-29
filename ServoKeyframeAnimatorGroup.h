@@ -35,6 +35,7 @@ public:
 	void setServoPositionNextKeyframeById (unsigned char id, unsigned char targetPosition);
 	void setServoPositionsNextKeyframe (unsigned char targetPositions[]);
 
+
 	unsigned int getMoveDuration();
 	void setServoMoveDuration(unsigned int duration);
 

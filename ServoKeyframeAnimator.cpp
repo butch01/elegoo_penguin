@@ -83,7 +83,20 @@ void ServoKeyframeAnimator::setServoAbsolutePosition(unsigned char absolutePos)
  */
 void ServoKeyframeAnimator::setServoAbsolutePositionChange(signed int absolutePosChange)
 {
-	_currentPosition = _currentPosition + absolutePosChange;
+	signed int currentPosAsInt = _currentPosition + absolutePosChange;
+	if (currentPosAsInt > 255)
+	{
+		_currentPosition = 255;
+	}
+	else if (currentPosAsInt < 0)
+	{
+		_currentPosition = 0;
+	}
+	else
+	{
+		_currentPosition = _currentPosition + absolutePosChange;
+	}
+
 }
 
 
