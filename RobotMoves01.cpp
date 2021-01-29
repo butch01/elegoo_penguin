@@ -95,18 +95,51 @@ void RobotMoves01::getKeyframe(unsigned char moveId, unsigned char iteration, un
 		};
 		memcpy(targetMove, move[iteration], sizeof move[iteration]);
 	}
-	else if (moveId == MOVE_DEBUG_SINGLE_ARRAY)
+	else if (moveId == MOVE_01_WALKTBACKWARDS)
 	{
-		// Log.trace(F("RobotMoves01::getKeyframe - in Move MOVE_DEBUG_SINGLE_ARRAY" CR));
-		unsigned char move[2][2] =
+		unsigned char move[6][5] =
 		{
-				{100,10},
-				{100,170}
+			{100, 90,      90 + 35, 90 - 15, 90 - 15},
+			{100, 90 + 25, 90 + 30, 90 - 15, 90 - 15},
+			{100, 90 + 20, 90 + 20, 90 + 15, 90 + 15},
+			{100, 90 - 35, 90,      90 + 15, 90 + 15},
+			{100, 90 - 40, 90 - 30, 90 + 15, 90 + 15},
+			{100, 90 - 20, 90 - 20, 90 - 15, 90 - 15},
 		};
-		// Log.trace(F("RobotMoves01::getKeyframe move[%d]=%d %d target=%d %d" CR ), iteration, move[iteration][0], move[iteration][1], targetMove[0], targetMove[1]);
 		memcpy(targetMove, move[iteration], sizeof move[iteration]);
-		// Log.trace(F("RobotMoves01::getKeyframe move[%d]=%d %d target=%d %d" CR ), iteration, move[iteration][0], move[iteration][1], targetMove[0], targetMove[1]);
 	}
+	else if (moveId == MOVE_01_TURN_RIGHT)
+	{
+		unsigned char move[8][5] =
+		{
+			{100, 90 - 55, 90 - 20, 90 + 20, 90 + 20},
+			{100, 90 - 20, 90 - 20, 90 + 20, 90 - 20},
+			{100, 90 + 20, 90 + 55, 90 + 20, 90 - 20},
+			{100, 90 + 20, 90 + 20, 90 - 20, 90 + 20},
+			{100, 90 - 55, 90 - 20, 90 - 20, 90 + 20},
+			{100, 90 - 20, 90 - 20, 90 + 20, 90 - 20},
+			{100, 90 + 20, 90 + 55, 90 + 20, 90 - 20},
+			{100, 90 + 20, 90 + 20, 90 - 20, 90 + 20}
+		};
+		memcpy(targetMove, move[iteration], sizeof move[iteration]);
+	}
+	else if (moveId == MOVE_01_TURN_LEFT)
+	{
+		unsigned char move[8][5] =
+		{
+			{90 + 20, 90 + 55, 90 + 20, 90 + 20},
+			{90 + 20, 90 + 20, 90 + 20, 90 - 20},
+			{90 - 55, 90 - 20, 90 + 20, 90 - 20},
+			{90 - 20, 90 - 20, 90 - 20, 90 - 20},
+			{90 + 20, 90 + 55, 90 - 20, 90 + 20},
+			{90 + 20, 90 + 20, 90 + 20, 90 - 20},
+			{90 - 55, 90 - 20, 90 + 20, 90 - 20},
+			{90 - 20, 90 - 20, 90 - 20, 90 - 20}
+		};
+		memcpy(targetMove, move[iteration], sizeof move[iteration]);
+	}
+
+
 }
 
 
@@ -174,10 +207,16 @@ unsigned char RobotMoves01::getNumberOfIterations(unsigned char moveId )
 	case MOVE_01_TEST:
 		iterationCount=4;
 		break;
-	case MOVE_DEBUG_SINGLE_ARRAY:
-		iterationCount=2;
+	case MOVE_01_WALKTBACKWARDS:
+		iterationCount=6;
+		break;
+	case MOVE_01_TURN_LEFT:
+		iterationCount=8;
+		break;
+	case MOVE_01_TURN_RIGHT:
+		iterationCount=8;
+		break;
 	}
-
 	return iterationCount;
 
 }

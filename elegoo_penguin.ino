@@ -19,7 +19,7 @@ unsigned long packageNumber=0;
 
 // 0 normal run
 // 1 test, deactivate ble processing, just running test samples
-#define RUNMODE 1
+#define RUNMODE 0
 // vars for test mode
 
 
@@ -236,13 +236,13 @@ enum MODE
 enum BTMODE
 {
     FORWARD,
-    BACKWAED,
+    BACKWARDS,
     TURNRIGHT,
-    TURNLIFT,
+    TURNLEFT,
     STOP,
 } BTmode = STOP; // Hand Tour APP Control Interface Left Domain Key
 
-//unsigned char lastCommand=STOP;
+unsigned char lastCommand=STOP;
 
 int musicIndex = 2;
 int musicNumber = 4;
@@ -1453,15 +1453,15 @@ void setupServos()
 	Log.notice(F("setup servos..." CR));
 	for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
 	{
-		servosLegs[i].setMaxValue(180);
-		servosLegs[i].setMinValue(0);
+		servosLegs[i].setMaxValue(130);
+		servosLegs[i].setMinValue(50);
 		Log.error(" servos [%d], min %d max %d" CR, i, servosLegs[i].getMinValue(), servosLegs[i].getMaxValue());
 
 	}
 
 	servoInit();
 	servoAttach();
-	//home(200);
+	home(200);
 }
 
 
@@ -1538,7 +1538,7 @@ void setup()
 //    MsTimer2::start();
 
 
-    home();
+ //   home();
 //	kickLeft(t);
 //	kickRight(t);
 //	delay(500);
@@ -1697,18 +1697,23 @@ bool isTimeout()
 void controlServosDirectly()
 {
 	 // rotate
-	servosLegs[SERVO_YL].enhancedWrite(map(message[PROT_STICK_LX],0,255,0,180));
-
-	servosLegs[SERVO_YR].enhancedWrite(map(message[PROT_STICK_RX],0,255,0,180));
-	// yaw
-	servosLegs[SERVO_RL].enhancedWrite(map(message[PROT_STICK_LY],0,255,0,180));
-	servosLegs[SERVO_RR].enhancedWrite(map(message[PROT_STICK_RY],0,255,0,180));
-
+//	servosLegs[SERVO_YL].enhancedWrite(map(message[PROT_STICK_LX],0,255,0,180));
+//
+//	servosLegs[SERVO_YR].enhancedWrite(map(message[PROT_STICK_RX],0,255,0,180));
+//	// yaw
+//	servosLegs[SERVO_RL].enhancedWrite(map(message[PROT_STICK_LY],0,255,0,180));
+//	servosLegs[SERVO_RR].enhancedWrite(map(message[PROT_STICK_RY],0,255,0,180));
+	servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(SERVO_YL)->setServoAbsolutePosition(map(message[PROT_STICK_LX],0,255,0,180));
+	servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(SERVO_YR)->setServoAbsolutePosition(map(message[PROT_STICK_RX],0,255,0,180));
+	servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(SERVO_RL)->setServoAbsolutePosition(map(message[PROT_STICK_LY],0,255,0,180));
+	servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(SERVO_RR)->setServoAbsolutePosition(map(message[PROT_STICK_RY],0,255,0,180));
+	servoGroups[SERVO_GROUP_LEGS].driveServosToCalculatedPosition();
 
 }
 
 void loop()
 {
+	DEBUG_SERIAL_NAME.println("loop");
 	Test_voltageMeasure();
 
 
@@ -1722,7 +1727,7 @@ void loop()
 //	{
 		//myMoveTest(SERVO_GROUP_LEGS, 10);
 		//genericMove(MOVE_01_TEST, SERVO_GROUP_LEGS, 10);
-	genericMove(MOVE_01_TEST, SERVO_GROUP_LEGS, 10);
+	genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 10);
 
 //
 //	}
@@ -1802,13 +1807,15 @@ void loop()
 			{
 				if (message[PROT_BTN_TRIANGLE] < 50)
 				{
-					DEBUG_SERIAL_NAME.println("walk f");
-					walk(1, t*1.5,1);
+//					DEBUG_SERIAL_NAME.println("walk f");
+					//walk(1, t*1.5,1);
+					genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 10);
 				}
 				else
 				{
-					DEBUG_SERIAL_NAME.println("run f");
-					walk(1, t/2,1);
+//					DEBUG_SERIAL_NAME.println("run f");
+					//walk(1, t/2,1);
+					genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 50);
 				}
 				highLevelControlPressed=true;
 				lastCommand=FORWARD;
@@ -1817,9 +1824,9 @@ void loop()
 			{
 				if (message[PROT_BTN_CROSS] > 0)
 				{
-					DEBUG_SERIAL_NAME.println("walk b");
-					lastCommand=BACKWAED;
-					walk(1,t,0);
+//					DEBUG_SERIAL_NAME.println("walk b");
+					lastCommand=BACKWARDS;
+					genericMove(MOVE_01_WALKTBACKWARDS, SERVO_GROUP_LEGS, 50);
 					highLevelControlPressed=true;
 
 				}
@@ -1827,18 +1834,18 @@ void loop()
 				{
 					if (message[PROT_BTN_SQUARE] > 0)
 					{
-						DEBUG_SERIAL_NAME.println("left");
-						lastCommand=TURNLIFT;
-						turn(1, t, 0);
+//						DEBUG_SERIAL_NAME.println("left");
+						lastCommand=TURNLEFT;
+						genericMove(MOVE_01_TURN_LEFT, SERVO_GROUP_LEGS, 50);
 						highLevelControlPressed=true;
 					}
 					else
 					{
 						if (message[PROT_BTN_CIRCLE] > 0)
 						{
-							DEBUG_SERIAL_NAME.println("right");
-							lastCommand=TURNRIGHT;
-							turn(1, t, 1);
+//							DEBUG_SERIAL_NAME.println("right");
+//							lastCommand=TURNRIGHT;
+							genericMove(MOVE_01_TURN_RIGHT, SERVO_GROUP_LEGS, 50);
 							highLevelControlPressed=true;
 						}
 					}
@@ -1850,11 +1857,15 @@ void loop()
 				if (lastCommand != STOP)
 				{
 					lastCommand = STOP;
-					home();
+//					home();
+					genericMove(MOVE_01_CENTER, SERVO_GROUP_LEGS, 10);
 				}
 			}
 
 		}
+
+
+		Log.verbose("%d %d %d %d" CR, servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon(),servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon());
 
 
 
@@ -1883,12 +1894,12 @@ void loop()
 		case BTN_DOWN:
 			mp3.stopPlay();
 			mode = BLUETOOTH;
-			BTmode = BACKWAED;
+			BTmode = BACKWARDS;
 			break;
 		case BTN_LEFT:
 			mp3.stopPlay();
 			mode = BLUETOOTH;
-			BTmode = TURNLIFT;
+			BTmode = TURNLEFT;
 			break;
 		case BTN_RIGHT:
 			mp3.stopPlay();
@@ -2054,7 +2065,7 @@ void loop()
 			walk(1, t * 3, 1);
 			servoDetach();
 			break;
-		case BACKWAED:
+		case BACKWARDS:
 			servoAttach();
 			walk(1, t * 3, -1);
 			servoDetach();
@@ -2064,7 +2075,7 @@ void loop()
 			turn(1, t * 4, 1);
 			servoDetach();
 			break;
-		case TURNLIFT:
+		case TURNLEFT:
 			servoAttach();
 			turn(1, t * 4, -1);
 			servoDetach();
