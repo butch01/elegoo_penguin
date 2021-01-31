@@ -34,12 +34,18 @@ unsigned long packageNumber=0;
 #define SERVO_GROUP_LEGS 0
 // #define SERVO_GROUP_ARMS 1
 
+bool isCenterKeyAlreadyPressed = false;
+
+
 // Array of ServoKeyframeAnimator for the 4 leg servos
 ServoKeyframeAnimator  keyframeAnimatorLegs[NUMBER_OF_SERVOGROUP_LEGS_SERVOS];
 EnhancedServo servosLegs[NUMBER_OF_SERVOGROUP_LEGS_SERVOS];
 //ServoKeyframeAnimatorGroup keyframeServoGroupLegs(keyframeAnimatorLegs, servoGroupLegs, NUMBER_OF_SERVOGROUP_LEGS_SERVOS);
 ServoKeyframeAnimatorGroup servoGroups[NUMBER_OF_SERVOGROUPS];
 unsigned char servoGroupLastMove[NUMBER_OF_SERVOGROUPS];
+
+
+bool isKeepServosLastPositions = true; // says if Servos should return to center (false) or if servos should stay in their last position (true)
 
 //Relay *relays[RELAY_ARRAY_SIZE] = { &myRelay };
 
@@ -322,7 +328,7 @@ void home(int delayms=0)
 		Serial.println(i);
 		Log.notice(F("home: setting servoGroupLegs[%d] to 90" CR), i);
 		servosLegs[i].enhancedWrite(90,0,180);
-		isCenter=true;
+
 	}
 	delay(delayms);
 
@@ -1614,7 +1620,7 @@ void setup()
     //Log.trace("adresses keyframemmode [0]=%d [1]=%d, [2]=%d, [3]=%d" CR, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(0).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(1).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(2).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(3).getKeyframeModeAddress());
 
 
-
+    Log.notice(F("setup done" CR));
 }
 
 /*
@@ -1756,7 +1762,7 @@ void controlServosByIncrement()
 
 void loop()
 {
-//	DEBUG_SERIAL_NAME.println("loop");
+//	DEBUG_SERIAL_NAME.println("%");
 	Test_voltageMeasure();
 
 
@@ -1819,98 +1825,154 @@ void loop()
 	{
 
 		serial_flag=false;
-		DEBUG_SERIAL_NAME.print(message[PROT_STICK_LX]);
-		DEBUG_SERIAL_NAME.print(" ");
-		DEBUG_SERIAL_NAME.print(message[PROT_STICK_LY]);
-		DEBUG_SERIAL_NAME.print(" ");
-		DEBUG_SERIAL_NAME.print(message[PROT_STICK_RX]);
-		DEBUG_SERIAL_NAME.print(" ");
-		DEBUG_SERIAL_NAME.print(message[PROT_STICK_RY]);
-		DEBUG_SERIAL_NAME.print(" T:");
-		DEBUG_SERIAL_NAME.print(message[PROT_BTN_TRIANGLE]);
-		DEBUG_SERIAL_NAME.print(" X:");
-		DEBUG_SERIAL_NAME.print(message[PROT_BTN_CROSS]);
-		DEBUG_SERIAL_NAME.print(" S:");
-		DEBUG_SERIAL_NAME.print(message[PROT_BTN_SQUARE]);
-		DEBUG_SERIAL_NAME.print(" O:");
-		DEBUG_SERIAL_NAME.print(message[PROT_BTN_CIRCLE]);
-		DEBUG_SERIAL_NAME.print("\n");
+//		DEBUG_SERIAL_NAME.print(message[PROT_STICK_LX]);
+//		DEBUG_SERIAL_NAME.print(" ");
+//		DEBUG_SERIAL_NAME.print(message[PROT_STICK_LY]);
+//		DEBUG_SERIAL_NAME.print(" ");
+//		DEBUG_SERIAL_NAME.print(message[PROT_STICK_RX]);
+//		DEBUG_SERIAL_NAME.print(" ");
+//		DEBUG_SERIAL_NAME.print(message[PROT_STICK_RY]);
+//		DEBUG_SERIAL_NAME.print(" T:");
+//		DEBUG_SERIAL_NAME.print(message[PROT_BTN_TRIANGLE]);
+//		DEBUG_SERIAL_NAME.print(" X:");
+//		DEBUG_SERIAL_NAME.print(message[PROT_BTN_CROSS]);
+//		DEBUG_SERIAL_NAME.print(" S:");
+//		DEBUG_SERIAL_NAME.print(message[PROT_BTN_SQUARE]);
+//		DEBUG_SERIAL_NAME.print(" O:");
+//		DEBUG_SERIAL_NAME.print(message[PROT_BTN_CIRCLE]);
+//		DEBUG_SERIAL_NAME.print("\n");
 
 
 		bool highLevelControlPressed=false;
 
+		// control servos directly with thumbsticks
 		if (message[PROT_BTN_R2] > 0)
 		{
-			// control servos directly with thumbsticks
+
 			controlServosDirectly();
+			isKeepServosLastPositions=true;
+
+			// set move to manual. Otherwise servos will not return smoothly to center after Pressing the center key.
+			for (unsigned int i=0; i< NUMBER_OF_SERVOGROUPS; i++)
+			{
+				servoGroupLastMove[i] = MOVE_01_MANUAL;
+			}
 		}
+
+		// control servos with thumbsticks, but increase / decrease. No change on Thumbstick release
 		else if (message[PROT_BTN_L2] > 0)
 		{
-			// control servos with thumbsticks, but increase / decrease. No change on Thumbstick release
+
 			controlServosByIncrement();
+			isKeepServosLastPositions=true;
+
+			// set move to manual. Otherwise servos will not return smoothly to center after Pressing the center key.
+			for (unsigned int i=0; i< NUMBER_OF_SERVOGROUPS; i++)
+			{
+				servoGroupLastMove[i] = MOVE_01_MANUAL;
+			}
 		}
 		else
 		{
-
-			if (message[PROT_BTN_TRIANGLE] > 10 )
+			// high level controls, no direct control via sticks
+			// return to center
+			if (message[PROT_BTN_R1] > 0)
 			{
-				if (message[PROT_BTN_TRIANGLE] < 50)
+				if (!isCenterKeyAlreadyPressed)
 				{
-//					DEBUG_SERIAL_NAME.println("walk f");
-					//walk(1, t*1.5,1);
-					genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 10);
+					isKeepServosLastPositions=false;
+					// update target positions to current values
+					servoGroups[SERVO_GROUP_LEGS].updateTargetToCurrent();
+					isCenterKeyAlreadyPressed=true;
 				}
-				else
-				{
-//					DEBUG_SERIAL_NAME.println("run f");
-					//walk(1, t/2,1);
-					genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 20);
-				}
-				highLevelControlPressed=true;
-				lastCommand=FORWARD;
+
 			}
 			else
 			{
-				if (message[PROT_BTN_CROSS] > 0)
-				{
-//					DEBUG_SERIAL_NAME.println("walk b");
-					genericMove(MOVE_01_WALKTBACKWARDS, SERVO_GROUP_LEGS, 15);
-					lastCommand=BACKWARDS;
-					highLevelControlPressed=true;
+				// center key is no longer pressed
+				isCenterKeyAlreadyPressed=false;
 
-				}
-				else
+
+				// move forward
+				if (message[PROT_BTN_TRIANGLE] > 0 )
 				{
-					if (message[PROT_BTN_SQUARE] > 0)
+					if (message[PROT_BTN_TRIANGLE] < 50)
 					{
-//						DEBUG_SERIAL_NAME.println("left");
-						genericMove(MOVE_01_TURN_LEFT, SERVO_GROUP_LEGS, 15);
-						lastCommand=TURNLEFT;
-						highLevelControlPressed=true;
+	//					DEBUG_SERIAL_NAME.println("walk f");
+						//walk(1, t*1.5,1);
+						genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 10);
 					}
 					else
 					{
-						if (message[PROT_BTN_CIRCLE] > 0)
+	//					DEBUG_SERIAL_NAME.println("run f");
+						//walk(1, t/2,1);
+						genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 20);
+					}
+					highLevelControlPressed=true;
+					lastCommand=FORWARD;
+				}
+
+				// move backwards
+				else
+				{
+					if (message[PROT_BTN_CROSS] > 0)
+
+					{
+		//					DEBUG_SERIAL_NAME.println("walk b");
+						genericMove(MOVE_01_WALKTBACKWARDS, SERVO_GROUP_LEGS, 15);
+						lastCommand=BACKWARDS;
+						highLevelControlPressed=true;
+
+					}
+
+				// turn left
+					else
+					{
+						if (message[PROT_BTN_SQUARE] > 0)
+
 						{
-//							DEBUG_SERIAL_NAME.println("right");
-							genericMove(MOVE_01_TURN_RIGHT, SERVO_GROUP_LEGS, 15);
-							lastCommand=TURNRIGHT;
+			//						DEBUG_SERIAL_NAME.println("left");
+							genericMove(MOVE_01_TURN_LEFT, SERVO_GROUP_LEGS, 15);
+							lastCommand=TURNLEFT;
 							highLevelControlPressed=true;
 						}
+
+
+					// turn right
+						else
+						{
+							if (message[PROT_BTN_CIRCLE] > 0)
+							{
+				//							DEBUG_SERIAL_NAME.println("right");
+								genericMove(MOVE_01_TURN_RIGHT, SERVO_GROUP_LEGS, 15);
+								lastCommand=TURNRIGHT;
+								highLevelControlPressed=true;
+							}
+						}
+//						Log.trace("highLevelControlPressed=%T, lastCommand=%d" CR, highLevelControlPressed, lastCommand);
 					}
 				}
-			}
-			Log.trace("highLevelControlPressed=%T, lastCommand=%d" CR, highLevelControlPressed, lastCommand);
-			// no high level button pressed -> home
-			if (!highLevelControlPressed)
-			{
-
-				if (lastCommand != STOP)
+				// no high level button pressed -> home
+				if (!highLevelControlPressed)
 				{
-					lastCommand = STOP;
-					 servoGroupMoveIteration[SERVO_GROUP_LEGS]=-1;
+
+					if (lastCommand != STOP)
+					{
+						lastCommand = STOP;
+						servoGroupMoveIteration[SERVO_GROUP_LEGS]=-1;
+					}
+					if (!isKeepServosLastPositions)
+					{
+						// genericMove(MOVE_01_CENTER, SERVO_GROUP_LEGS, 25);
+						genericMove(MOVE_01_CENTER, SERVO_GROUP_LEGS, 10);
+					}
 				}
-				genericMove(MOVE_01_CENTER, SERVO_GROUP_LEGS, 25);
+				else
+				{
+					// high level command received. Return to center after move iteration is done when stopping.
+					isKeepServosLastPositions=false;
+				}
+//				}
 			}
 
 		}
@@ -2262,7 +2324,7 @@ void calculateMoveIterationId (unsigned char iterationMode, signed char sizeOfIt
 					}
 					else
 					{
-						if (iterationMode == ITERATION_CONTINUATION_MODE_ONCE)
+						if (iterationMode == ITERATION_CONTINUATION_MODE_ONCE_NO_WAIT || iterationMode == ITERATION_CONTINUATION_MODE_ONCE_WAIT)
 						{
 							// end is reached, stop is set. so keep there
 							iterationDirection=0;
@@ -2313,8 +2375,10 @@ unsigned char checkAndCorrectSpeedBounds(unsigned char speed)
  */
 void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int speed)
 {
-//	unsigned char oldMoveIteration = servoGroupMoveIteration[servoGroupId] ;
-	Log.trace(F("genericMove -  start: isInMove%T" CR), servoGroups[servoGroupId].isInMove());
+//	Log.trace(F("MOVE is: %d, old is %d" CR), moveId, servoGroupLastMove[servoGroupId]);
+	bool isNewMove=false;
+	//	unsigned char oldMoveIteration = servoGroupMoveIteration[servoGroupId] ;
+	//Log.trace(F("genericMove -  start: isInMove%T" CR), servoGroups[servoGroupId].isInMove());
 	if ( ! servoGroups[servoGroupId].isInMove())
 	{
 
@@ -2322,7 +2386,15 @@ void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int 
 		{
 			// we have a new move now. set iteration to the beginning (-1)
 			servoGroupMoveIteration[servoGroupId]=-1;
+			isNewMove = true;
+
 		}
+		else
+		{
+			isNewMove=false;
+		}
+
+
 		// remember the move id
 		servoGroupLastMove[servoGroupId] = moveId;
 
@@ -2338,69 +2410,85 @@ void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int 
 
 
 
-			// increase the iteration if we will stay in bounds. otherwise recycle from beginning
-			//calculateMoveIterationId( ITERATION_MODE_LOOP, 4, servoGroupMoveIteration[servoGroupId], servoGroupMoveIterationDirection[servoGroupId]);
-			calculateMoveIterationId( movesLegs4Servos.getContinuationMode(moveId),movesLegs4Servos.getNumberOfIterations(moveId) , servoGroupMoveIteration[servoGroupId], servoGroupMoveIterationDirection[servoGroupId]);
+		// increase the iteration if we will stay in bounds. otherwise recycle from beginning
+		//calculateMoveIterationId( ITERATION_MODE_LOOP, 4, servoGroupMoveIteration[servoGroupId], servoGroupMoveIterationDirection[servoGroupId]);
+		calculateMoveIterationId( movesLegs4Servos.getContinuationMode(moveId),movesLegs4Servos.getNumberOfIterations(moveId) , servoGroupMoveIteration[servoGroupId], servoGroupMoveIterationDirection[servoGroupId]);
 
-			// now copy the keyframe of move for the calculated iteration to mykeyframe
-			unsigned char myKeyframe[NUMBER_OF_SERVOGROUP_LEGS_SERVOS +1];
+		// now copy the keyframe of move for the calculated iteration to mykeyframe
+		unsigned char myKeyframe[NUMBER_OF_SERVOGROUP_LEGS_SERVOS +1];
 
-			movesLegs4Servos.getKeyframe(moveId, servoGroupMoveIteration[servoGroupId], myKeyframe);
-
-			DEBUG_SERIAL_NAME.print("genericMove - myKeyframe values: ");
-			for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS +1; i++ )
+		movesLegs4Servos.getKeyframe(moveId, servoGroupMoveIteration[servoGroupId], myKeyframe);
+		if (!isNewMove)
+		{
+			// check the continuation mode. Rewrite duration / time if it is set to ITERATION_CONTINUATION_MODE_ONCE_NO_WAIT
+			if (movesLegs4Servos.getContinuationMode(moveId) == ITERATION_CONTINUATION_MODE_ONCE_NO_WAIT )
 			{
-				DEBUG_SERIAL_NAME.print(myKeyframe[i]);
-				DEBUG_SERIAL_NAME.print(" ");
-			}
-			DEBUG_SERIAL_NAME.print("\n");
-
-			// duration in keyframe is 0.01s. Multiply by 10 to have millis
-			unsigned int baseDurationInMs = ((unsigned int) myKeyframe[0])*10;
-
-			unsigned char keyframeOnlyServos[servoGroups[servoGroupId].getNumberOfServos()];
-
-			DEBUG_SERIAL_NAME.print("genericMove - keyframeOnlyServos[] = ");
-			for (unsigned int i=0; i < servoGroups[servoGroupId].getNumberOfServos(); i++)
-			{
-				keyframeOnlyServos[i] = myKeyframe[i+1];
-				DEBUG_SERIAL_NAME.print(keyframeOnlyServos[i]);
-				DEBUG_SERIAL_NAME.print(" ");
-			}
-			DEBUG_SERIAL_NAME.print("\n");
-
-				// the faster the speed, the less the time given for a move.
-
-				servoGroups[servoGroupId].setServoMoveDuration(baseDurationInMs / (checkAndCorrectSpeedBounds(speed) / 10 ));
-
-				servoGroups[servoGroupId].setServoPositionsNextKeyframe(keyframeOnlyServos);
-
-	//			Log.trace("setting keyframemmode:");
-				for (unsigned int i=0; i< servoGroups[servoGroupId].getNumberOfServos(); i++)
+				Log.trace(F("XXXXXXXXXXXXXXX" CR));
+				// check if target position for all servos is reached.
+				if (servoGroups[servoGroupId].isTargetPositionOfKeyframeReached())
 				{
-	//				Log.trace("[%d]=%d ",i, KEYFRAME_MODE_SMOOTH);
-					servoGroups[servoGroupId].getServoKeyframeAnimator(i)->setKeyframeMode(KEYFRAME_MODE_SMOOTH);
+					// set duration to 0 ms. By that the Move is over within the next loop iteration.
+					myKeyframe[0]=0;
 				}
-	//			Log.trace("\n");
 			}
+		}
 
-	//		Log.trace("getting keyframemmode:");
-	//		for (unsigned int i=0; i< servoGroups[servoGroupId].getNumberOfServos(); i++)
-	//		{
-	//			Log.trace("[%d]=%d ",i, servoGroups[servoGroupId].getServoKeyframeAnimator(i)->getKeyframeMode()) ;
-	//		}
-	//		Log.trace("\n");
 
-			// calculate the new servo position
-			servoGroups[servoGroupId].calculateServoPositions();
 
-			// drive the servos
-	//		for (unsigned char i=0; i < keyframeServoGroupLegs.getNumberOfServos(); i++)
-	//		{
-	//			servoGroupLegs[i].enhancedWrite(keyframeServoGroupLegs.getCalculatedServoPositionById(i) , 0, 180);
-	//		}
-			servoGroups[servoGroupId].driveServosToCalculatedPosition();
-	//		Log.trace("adresses keyframemmode [0]=%d [1]=%d, [2]=%d, [3]=%d" CR, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(0).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(1).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(2).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(3).getKeyframeModeAddress());
+		DEBUG_SERIAL_NAME.print("genericMove - myKeyframe values: ");
+		for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS +1; i++ )
+		{
+			DEBUG_SERIAL_NAME.print(myKeyframe[i]);
+			DEBUG_SERIAL_NAME.print(" ");
+		}
+		DEBUG_SERIAL_NAME.print("\n");
+
+		// duration in keyframe is 0.01s. Multiply by 10 to have millis
+		unsigned int baseDurationInMs = ((unsigned int) myKeyframe[0])*10;
+
+		unsigned char keyframeOnlyServos[servoGroups[servoGroupId].getNumberOfServos()];
+
+		DEBUG_SERIAL_NAME.print("genericMove - keyframeOnlyServos[] = ");
+		for (unsigned int i=0; i < servoGroups[servoGroupId].getNumberOfServos(); i++)
+		{
+			keyframeOnlyServos[i] = myKeyframe[i+1];
+			DEBUG_SERIAL_NAME.print(keyframeOnlyServos[i]);
+			DEBUG_SERIAL_NAME.print(" ");
+		}
+		DEBUG_SERIAL_NAME.print("\n");
+
+		// the faster the speed, the less the time given for a move.
+
+		servoGroups[servoGroupId].setServoMoveDuration(baseDurationInMs / (checkAndCorrectSpeedBounds(speed) / 10 ));
+
+		servoGroups[servoGroupId].setServoPositionsNextKeyframe(keyframeOnlyServos);
+
+//		Log.trace("setting keyframemmode:");
+		for (unsigned int i=0; i< servoGroups[servoGroupId].getNumberOfServos(); i++)
+		{
+//				Log.trace("[%d]=%d ",i, KEYFRAME_MODE_SMOOTH);
+			servoGroups[servoGroupId].getServoKeyframeAnimator(i)->setKeyframeMode(KEYFRAME_MODE_SMOOTH);
+		}
+//		Log.trace("\n");
+	}
+
+//		Log.trace("getting keyframemmode:");
+//		for (unsigned int i=0; i< servoGroups[servoGroupId].getNumberOfServos(); i++)
+//		{
+//			Log.trace("[%d]=%d ",i, servoGroups[servoGroupId].getServoKeyframeAnimator(i)->getKeyframeMode()) ;
+//		}
+//		Log.trace("\n");
+
+		// calculate the new servo position
+		servoGroups[servoGroupId].calculateServoPositions();
+
+		// drive the servos
+//		for (unsigned char i=0; i < keyframeServoGroupLegs.getNumberOfServos(); i++)
+//		{
+//			servoGroupLegs[i].enhancedWrite(keyframeServoGroupLegs.getCalculatedServoPositionById(i) , 0, 180);
+//		}
+		servoGroups[servoGroupId].driveServosToCalculatedPosition();
+//		Log.trace("adresses keyframemmode [0]=%d [1]=%d, [2]=%d, [3]=%d" CR, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(0).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(1).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(2).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(3).getKeyframeModeAddress());
 //	}
 
 }

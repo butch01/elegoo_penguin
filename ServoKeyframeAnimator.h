@@ -43,6 +43,7 @@ public:
 	unsigned int getKeyframeModeAddress();
 
 
+
 private:
 	unsigned int 	_duration=0;
 	unsigned char 	_currentPosition;
