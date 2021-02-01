@@ -136,7 +136,7 @@ void ServoKeyframeAnimatorGroup::calculateServoPositions()
 		_timePreviousKeyframe=millis();
 
 		#if DEBUG_SERVO_KEYFRAME_ANIMATOR_GROUP_CALCULATE_SERVO_POSITIONS == 1
-			Log.trace(F("ServoKeyframeAnimatorGroup::calculateServoPositions : set _isInMove=%T at _timePreviousKeyframe=%l"CR), _isInMove, _timePreviousKeyframe );
+			Log.trace(F("ServoKeyframeAnimatorGroup::calculateServoPositions : set _isInMove=%T at _timePreviousKeyframe=%l" CR), _isInMove, _timePreviousKeyframe );
 		#endif
 
 	}
@@ -223,7 +223,7 @@ void ServoKeyframeAnimatorGroup::setServoPositionsNextKeyframe (unsigned char* t
  */
 bool ServoKeyframeAnimatorGroup::isInMove()
 {
-	Log.trace(F("ServoKeyframeAnimatorGroup::isInMove() - returning %T" CR), _isInMove);
+	//Log.trace(F("ServoKeyframeAnimatorGroup::isInMove() - returning %T" CR), _isInMove);
 	return _isInMove;
 }
 
@@ -241,4 +241,42 @@ void ServoKeyframeAnimatorGroup::driveServosToCalculatedPosition()
 		_servos[i].enhancedWrite(getCalculatedServoPositionById(i), 0, 180);
 //		Log.trace(F("ServoKeyframeAnimatorGroup::driveServosToCalculatedPosition -> servo[%d]=%d" CR), i,getCalculatedServoPositionById(i) );
 	}
+}
+
+/**
+ * returns true if target position is equal to current Position of all Servos. It does NOT respect the duration.
+ * Only returns true if ALL servos are in target position
+ */
+bool ServoKeyframeAnimatorGroup::isTargetPositionOfKeyframeReached()
+{
+
+	bool isFinalPositionReached=true; // default is true. Will get false if one Server is NOT in final position
+	for (unsigned char i=0; i< _numberOfServos; i++)
+	{
+		if (_keyframeAnimators[i].getServoCurrentPositon() != _keyframeAnimators[i].getServoTargetPositon())
+		{
+			isFinalPositionReached=true;
+		}
+	}
+	return isFinalPositionReached;
+}
+
+
+
+/**
+ * sets target position to current position. mark as keyframe reached
+ * useful at the end of manual ServoPositon.
+ */
+void ServoKeyframeAnimatorGroup::updateTargetToCurrent()
+{
+	_isInMove=false;
+//	Log.trace(F("ServoKeyframeAnimatorGroup::updateTargetToCurrent, _isInMove=%T"), _isInMove);
+	for (unsigned char i=0; i< _numberOfServos; i++)
+	{
+		_keyframeAnimators[i].setServoPositionNextKeyframe(_keyframeAnimators[i].getServoCurrentPositon());
+		_keyframeAnimators[i].setServoPositionPreviousKeyframe(_keyframeAnimators[i].getServoCurrentPositon());
+//		Log.trace(F("[i]=%d setServoPositionNextKeyframe=%d"), i, _keyframeAnimators[i].getServoTargetPositon());
+	}
+//	Log.trace(CR);
+
 }

@@ -46,7 +46,9 @@ public:
 	void driveServosToCalculatedPosition();
 
 	unsigned char getKeyframeAnimatorKeyframeMode (unsigned char id);
+	bool isTargetPositionOfKeyframeReached();
 
+	void updateTargetToCurrent();
 
 private:
 	ServoKeyframeAnimator* 	_keyframeAnimators;

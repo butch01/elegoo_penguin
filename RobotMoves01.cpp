@@ -43,6 +43,12 @@ unsigned char RobotMoves01::getContinuationMode(unsigned char moveId)
 {
 	// smooth as default
 	unsigned char continuationMode = ITERATION_CONTINUATION_MODE_LOOP;
+	switch (moveId)
+	{
+	case MOVE_01_CENTER:
+		continuationMode = ITERATION_CONTINUATION_MODE_ONCE_NO_WAIT;
+		break;
+	}
 
 
 	return continuationMode;
@@ -127,14 +133,14 @@ void RobotMoves01::getKeyframe(unsigned char moveId, unsigned char iteration, un
 	{
 		unsigned char move[8][5] =
 		{
-			{90 + 20, 90 + 55, 90 + 20, 90 + 20},
-			{90 + 20, 90 + 20, 90 + 20, 90 - 20},
-			{90 - 55, 90 - 20, 90 + 20, 90 - 20},
-			{90 - 20, 90 - 20, 90 - 20, 90 - 20},
-			{90 + 20, 90 + 55, 90 - 20, 90 + 20},
-			{90 + 20, 90 + 20, 90 + 20, 90 - 20},
-			{90 - 55, 90 - 20, 90 + 20, 90 - 20},
-			{90 - 20, 90 - 20, 90 - 20, 90 - 20}
+			{100, 90 + 20, 90 + 55, 90 + 20, 90 + 20},
+			{100, 90 + 20, 90 + 20, 90 + 20, 90 - 20},
+			{100, 90 - 55, 90 - 20, 90 + 20, 90 - 20},
+			{100, 90 - 20, 90 - 20, 90 - 20, 90 - 20},
+			{100, 90 + 20, 90 + 55, 90 - 20, 90 + 20},
+			{100, 90 + 20, 90 + 20, 90 + 20, 90 - 20},
+			{100, 90 - 55, 90 - 20, 90 + 20, 90 - 20},
+			{100, 90 - 20, 90 - 20, 90 - 20, 90 - 20}
 		};
 		memcpy(targetMove, move[iteration], sizeof move[iteration]);
 	}
