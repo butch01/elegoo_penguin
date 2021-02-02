@@ -44,7 +44,7 @@ EnhancedServo servosLegs[NUMBER_OF_SERVOGROUP_LEGS_SERVOS];
 ServoKeyframeAnimatorGroup servoGroups[NUMBER_OF_SERVOGROUPS];
 unsigned char servoGroupLastMove[NUMBER_OF_SERVOGROUPS];
 
-
+bool isCurrentlyUpdatingTrim = false;
 bool isKeepServosLastPositions = true; // says if Servos should return to center (false) or if servos should stay in their last position (true)
 
 //Relay *relays[RELAY_ARRAY_SIZE] = { &myRelay };
@@ -116,7 +116,7 @@ RR 0==^   -----   ------  v== RL 1
 //signed char trim_yr;
 //signed char trim_yl;
 
-signed char servoGroupLegsTrim[NUMBER_OF_SERVOGROUP_LEGS_SERVOS];
+//signed char servoGroupLegsTrim[NUMBER_OF_SERVOGROUP_LEGS_SERVOS];
 
 //int addr_trim_rr = SERVO_RR;
 //int addr_trim_rl = SERVO_RL;
@@ -1275,11 +1275,11 @@ void servoAttach()
 //    DEBUG_SERIAL_NAME.println(trim_yl);
 //    servosLegs[3].setTrim(trim_yl);
 
-    for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
-    {
-    	servosLegs[i].setTrim(servoGroupLegsTrim[i]);
-    	Log.verbose(F("servoAttach: servosLegs[%d].setTrim=%d" CR), i, servoGroupLegsTrim[i]);
-    }
+//    for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+//    {
+//    	servosLegs[i].setTrim(servoGroupLegsTrim[i]);
+//    	Log.verbose(F("servoAttach: servosLegs[%d].setTrim=%d" CR), i, servoGroupLegsTrim[i]);
+//    }
 
     servosLegs[0].attach(RR_PIN);
     servosLegs[1].attach(RL_PIN);
@@ -1381,55 +1381,10 @@ void servoInit()
 	Log.notice(F("servoInit: reading trim from EEPROM" CR));
 	for (unsigned int i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
 	{
-		servoGroupLegsTrim[i] =  getEEPROMTrim(i);
-		Log.trace(F("servoGroupLegsTrim[%d] =  %d;" CR), i, servoGroupLegsTrim[i] );
+		servosLegs[i].setTrim(getEEPROMTrim(i));
+		Log.trace(F("servoGroupLegsTrim[%d] =  %d;" CR), i, servosLegs[i].getTrim() );
 	}
 
-
-//    trim_rr = getEEPROMTrim(SERVO_RR);
-//    trim_rl = getEEPROMTrim(SERVO_RL);
-//    trim_yr = getEEPROMTrim(SERVO_YR);
-//    trim_yl = getEEPROMTrim(SERVO_YL);
-
-//	Log.trace(F("servoInit: SERVO_RL: %d, SERVO_RR: %d, SERVO_YL: %d, SERVO_YR: %d" CR), trim_rl, trim_rr, trim_yl, trim_yr );
-//
-//	if (EEPROM.read(addr_trim_rr) != 255)
-//    {
-//        trim_rr = EEPROM.read(addr_trim_rr) - 90;
-//    }
-//    else
-//    {
-//        trim_rr = 0;
-//    }
-//
-//    if (EEPROM.read(addr_trim_rl) != 255)
-//    {
-//        trim_rl = EEPROM.read(addr_trim_rl) - 90;
-//    }
-//    else
-//    {
-//        trim_rl = 0;
-//    }
-//
-//    if (EEPROM.read(addr_trim_yr) != 255)
-//    {
-//        trim_yr = EEPROM.read(addr_trim_yr) - 90;
-//    }
-//    else
-//    {
-//        trim_yr = 0;
-//    }
-//
-//    if (EEPROM.read(addr_trim_yl) != 255)
-//    {
-//        trim_yl = EEPROM.read(addr_trim_yl) - 90;
-//    }
-//    else
-//    {
-//        trim_yl = 0;
-//    }
-
-//    Log.notice(F("servoInit: loaded trim: trim_rr=%d trim_rl=%d trim_yr=%d trim_yl=%d" CR), trim_rr, trim_rl, trim_yr, trim_yl );
     Log.notice(F("servoInit: finished" CR));
 }
 
@@ -1925,146 +1880,154 @@ void loop()
 		// store trim?
 		if (message[PROT_BTN_L1] && message[PROT_BTN_L2] && message[PROT_BTN_TRIANGLE])
 		{
-			updateTrimValuesFromCurrentPositions();
-			saveTrimValuesInEEPROM();
+			if (isCurrentlyUpdatingTrim == false)
+			{
+				isCurrentlyUpdatingTrim=true;
+				updateTrimValuesFromCurrentPositions();
+				saveTrimValuesInEEPROM();
+			}
 
 		}
 
 		// control servos directly with thumbsticks
-		else if (message[PROT_BTN_R2] > 0)
-		{
-
-			controlServosDirectly();
-			isKeepServosLastPositions=true;
-
-			// set move to manual. Otherwise servos will not return smoothly to center after Pressing the center key.
-			for (unsigned int i=0; i< NUMBER_OF_SERVOGROUPS; i++)
-			{
-				servoGroupLastMove[i] = MOVE_01_MANUAL;
-			}
-		}
-
-		// control servos with thumbsticks, but increase / decrease. No change on Thumbstick release
-		else if (message[PROT_BTN_L2] > 0)
-		{
-
-			controlServosByIncrement();
-			isKeepServosLastPositions=true;
-
-			// set move to manual. Otherwise servos will not return smoothly to center after Pressing the center key.
-			for (unsigned int i=0; i< NUMBER_OF_SERVOGROUPS; i++)
-			{
-				servoGroupLastMove[i] = MOVE_01_MANUAL;
-			}
-		}
-
 		else
 		{
-			// high level controls, no direct control via sticks
-			// return to center
-			if (message[PROT_BTN_R1] > 0)
+			isCurrentlyUpdatingTrim=false;
+			if (message[PROT_BTN_R2] > 0)
 			{
-				if (!isCenterKeyAlreadyPressed)
-				{
-					isKeepServosLastPositions=false;
-					// update target positions to current values
-					servoGroups[SERVO_GROUP_LEGS].updateTargetToCurrent();
-					isCenterKeyAlreadyPressed=true;
-				}
 
+				controlServosDirectly();
+				isKeepServosLastPositions=true;
+
+				// set move to manual. Otherwise servos will not return smoothly to center after Pressing the center key.
+				for (unsigned int i=0; i< NUMBER_OF_SERVOGROUPS; i++)
+				{
+					servoGroupLastMove[i] = MOVE_01_MANUAL;
+				}
 			}
+
+			// control servos with thumbsticks, but increase / decrease. No change on Thumbstick release
+			else if (message[PROT_BTN_L2] > 0)
+			{
+
+				controlServosByIncrement();
+				isKeepServosLastPositions=true;
+
+				// set move to manual. Otherwise servos will not return smoothly to center after Pressing the center key.
+				for (unsigned int i=0; i< NUMBER_OF_SERVOGROUPS; i++)
+				{
+					servoGroupLastMove[i] = MOVE_01_MANUAL;
+				}
+			}
+
 			else
 			{
-				// center key is no longer pressed
-				isCenterKeyAlreadyPressed=false;
-
-
-				// move forward
-				if (message[PROT_BTN_TRIANGLE] > 0 )
+				// high level controls, no direct control via sticks
+				// return to center
+				if (message[PROT_BTN_R1] > 0)
 				{
-					if (message[PROT_BTN_TRIANGLE] < 50)
+					if (!isCenterKeyAlreadyPressed)
 					{
-	//					DEBUG_SERIAL_NAME.println("walk f");
-						//walk(1, t*1.5,1);
-						genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 10);
+						isKeepServosLastPositions=false;
+						// update target positions to current values
+						servoGroups[SERVO_GROUP_LEGS].updateTargetToCurrent();
+						isCenterKeyAlreadyPressed=true;
 					}
-					else
-					{
-	//					DEBUG_SERIAL_NAME.println("run f");
-						//walk(1, t/2,1);
-						genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 20);
-					}
-					highLevelControlPressed=true;
-					lastCommand=FORWARD;
-				}
 
-				// move backwards
+				}
 				else
 				{
-					if (message[PROT_BTN_CROSS] > 0)
+					// center key is no longer pressed
+					isCenterKeyAlreadyPressed=false;
 
+
+					// move forward
+					if (message[PROT_BTN_TRIANGLE] > 0 )
 					{
-		//					DEBUG_SERIAL_NAME.println("walk b");
-						genericMove(MOVE_01_WALKTBACKWARDS, SERVO_GROUP_LEGS, 15);
-						lastCommand=BACKWARDS;
-						highLevelControlPressed=true;
-
-					}
-
-				// turn left
-					else
-					{
-						if (message[PROT_BTN_SQUARE] > 0)
-
+						if (message[PROT_BTN_TRIANGLE] < 50)
 						{
-			//						DEBUG_SERIAL_NAME.println("left");
-							genericMove(MOVE_01_TURN_LEFT, SERVO_GROUP_LEGS, 15);
-							lastCommand=TURNLEFT;
-							highLevelControlPressed=true;
+		//					DEBUG_SERIAL_NAME.println("walk f");
+							//walk(1, t*1.5,1);
+							genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 10);
 						}
-
-
-					// turn right
 						else
 						{
-							if (message[PROT_BTN_CIRCLE] > 0)
+		//					DEBUG_SERIAL_NAME.println("run f");
+							//walk(1, t/2,1);
+							genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 20);
+						}
+						highLevelControlPressed=true;
+						lastCommand=FORWARD;
+					}
+
+					// move backwards
+					else
+					{
+						if (message[PROT_BTN_CROSS] > 0)
+
+						{
+			//					DEBUG_SERIAL_NAME.println("walk b");
+							genericMove(MOVE_01_WALKTBACKWARDS, SERVO_GROUP_LEGS, 15);
+							lastCommand=BACKWARDS;
+							highLevelControlPressed=true;
+
+						}
+
+					// turn left
+						else
+						{
+							if (message[PROT_BTN_SQUARE] > 0)
+
 							{
-				//							DEBUG_SERIAL_NAME.println("right");
-								genericMove(MOVE_01_TURN_RIGHT, SERVO_GROUP_LEGS, 15);
-								lastCommand=TURNRIGHT;
+				//						DEBUG_SERIAL_NAME.println("left");
+								genericMove(MOVE_01_TURN_LEFT, SERVO_GROUP_LEGS, 15);
+								lastCommand=TURNLEFT;
 								highLevelControlPressed=true;
 							}
+
+
+						// turn right
+							else
+							{
+								if (message[PROT_BTN_CIRCLE] > 0)
+								{
+					//							DEBUG_SERIAL_NAME.println("right");
+									genericMove(MOVE_01_TURN_RIGHT, SERVO_GROUP_LEGS, 15);
+									lastCommand=TURNRIGHT;
+									highLevelControlPressed=true;
+								}
+							}
+	//						Log.trace("highLevelControlPressed=%T, lastCommand=%d" CR, highLevelControlPressed, lastCommand);
 						}
-//						Log.trace("highLevelControlPressed=%T, lastCommand=%d" CR, highLevelControlPressed, lastCommand);
 					}
-				}
-				// no high level button pressed -> home
-				if (!highLevelControlPressed)
-				{
+					// no high level button pressed -> home
+					if (!highLevelControlPressed)
+					{
 
-					if (lastCommand != STOP)
-					{
-						lastCommand = STOP;
-						servoGroupMoveIteration[SERVO_GROUP_LEGS]=-1;
+						if (lastCommand != STOP)
+						{
+							lastCommand = STOP;
+							servoGroupMoveIteration[SERVO_GROUP_LEGS]=-1;
+						}
+						if (!isKeepServosLastPositions)
+						{
+							// genericMove(MOVE_01_CENTER, SERVO_GROUP_LEGS, 25);
+							genericMove(MOVE_01_CENTER, SERVO_GROUP_LEGS, 10);
+						}
 					}
-					if (!isKeepServosLastPositions)
+					else
 					{
-						// genericMove(MOVE_01_CENTER, SERVO_GROUP_LEGS, 25);
-						genericMove(MOVE_01_CENTER, SERVO_GROUP_LEGS, 10);
+						// high level command received. Return to center after move iteration is done when stopping.
+						isKeepServosLastPositions=false;
 					}
+	//				}
 				}
-				else
-				{
-					// high level command received. Return to center after move iteration is done when stopping.
-					isKeepServosLastPositions=false;
-				}
-//				}
+
 			}
-
 		}
 
-//		Log.verbose("%d %d %d %d" CR, servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon());
-		Log.verbose("%d %d %d %d wT: %d %d %d %d , ServoTrim: %d %d %d %d, TrimArray: %d %d %d %d" CR, servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon(),servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon(),          servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon() + servoGroupLegsTrim[0], servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon() + servoGroupLegsTrim[1], servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon() + servoGroupLegsTrim[2], servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon()  + servoGroupLegsTrim[3], servosLegs[0].getTrim(), servosLegs[1].getTrim(), servosLegs[2].getTrim(), servosLegs[3].getTrim(), servoGroupLegsTrim[0], servoGroupLegsTrim[1],servoGroupLegsTrim[2], servoGroupLegsTrim[3]);
+		Log.verbose("%d %d %d %d" CR, servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon());
+//		Log.verbose("%d %d %d %d wT: %d %d %d %d , ServoTrim: %d %d %d %d, servoRead %d %d %d %d " CR, servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon(),servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon(),          servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon() + servosLegs[0].getTrim(), servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon() + servosLegs[1].getTrim(), servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon() + servosLegs[2].getTrim(), servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon()  + servosLegs[3].getTrim(), servosLegs[0].getTrim(), servosLegs[1].getTrim(), servosLegs[2].getTrim(), servosLegs[3].getTrim(), servosLegs[0].read(), servosLegs[1].read(), servosLegs[2].read(), servosLegs[3].read());
 
 
 
@@ -2662,12 +2625,12 @@ void saveTrimValuesInEEPROM()
 	Log.trace(F("storeTrimValuesInEEPROM" CR));
 	for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
 	{
-		Log.trace(F("eeprom=%d == servoGroupLegsTrim=%d ?" CR), getEEPROMTrim(i), servoGroupLegsTrim[i]);
-		if (getEEPROMTrim(i) != servoGroupLegsTrim[i])
+		Log.trace(F("eeprom=%d == servoGroupLegsTrim=%d ?" CR), getEEPROMTrim(i), servosLegs[i].getTrim());
+		if (getEEPROMTrim(i) != servosLegs[i].getTrim())
 		{
-			Log.trace(F("save Servo Trim %d = %d (%d)" CR), i,servoGroupLegsTrim[i],  servoGroupLegsTrim[i] + 90 );
-			EEPROM.write((int) i, servoGroupLegsTrim[i] + 90);
-			Log.trace(F("verify Servo Trim %d = %d (%d) = %d" CR), i,servoGroupLegsTrim[i],  servoGroupLegsTrim[i] + 90, getEEPROMTrim(i) );
+			Log.trace(F("save Servo Trim %d = %d (%d)" CR), i,servosLegs[i].getTrim(),  servosLegs[i].getTrim() + 90 );
+			EEPROM.write((int) i, servosLegs[i].getTrim() + 90);
+			Log.trace(F("verify Servo Trim %d = %d (%d) = %d" CR), i,servosLegs[i].getTrim(),  servosLegs[i].getTrim() + 90, getEEPROMTrim(i) );
 		}
 	}
 //
@@ -2698,12 +2661,17 @@ void saveTrimValuesInEEPROM()
 
 void updateTrimValuesFromCurrentPositions()
 {
+
 	for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
 	{
-		Log.verbose(F("updateTrimValuesFromCurrentPositions: i=%d, servoPos=%d, oldtrimRAM=%d, oldTrimEEPROM=%d" CR) , i, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)->getServoCurrentPositon(), servoGroupLegsTrim[i], EEPROM.read((int) i -90));
-		servoGroupLegsTrim[i] = 90 - servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)->getServoCurrentPositon();
-		Log.verbose(F("updateTrimValuesFromCurrentPositions: set trim for servo[%d] to %d" CR), i, servoGroupLegsTrim[i]);
-		servosLegs[i].setTrim(servoGroupLegsTrim[i]);
+
+		Log.verbose(F("updateTrimValuesFromCurrentPositions: i=%d, servoPos=%d, oldtrimRAM=%d, oldTrimEEPROM=%d" CR) , i, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)->getServoCurrentPositon(), servosLegs[i].getTrim(), EEPROM.read((int) i -90));
+		//signed char newTrim = servosLegs[i].read() - servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)->getServoCurrentPositon();
+		signed char newTrim = servosLegs[i].read() - 90;
+		Log.verbose(F("updateTrimValuesFromCurrentPositions: set trim for servo[%d] to %d" CR), i, servosLegs[i].getTrim());
+
+		servosLegs[i].setTrim(newTrim);
+
 		servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)->setServoAbsolutePosition(90);
 		servoGroups[SERVO_GROUP_LEGS].driveServosToCalculatedPosition();
 	}
