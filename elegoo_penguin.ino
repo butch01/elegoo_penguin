@@ -100,28 +100,34 @@ RR 0==^   -----   ------  v== RL 1
          |-----   ------|
 */
 
-
-#define SERVO_YL 3
-#define SERVO_RL 1
-#define SERVO_YR 2
-#define SERVO_RR 0
-
 #define YL_PIN 10
 #define YR_PIN 9
 #define RL_PIN 12
 #define RR_PIN 6
 
+#define SERVO_RR 0
+#define SERVO_RL 1
+#define SERVO_YR 2
+#define SERVO_YL 3
+
 /* fine-tuning temporary storage variables*/
-signed char trim_rr;
-signed char trim_rl;
-signed char trim_yr;
-signed char trim_yl;
+//signed char trim_rr;
+//signed char trim_rl;
+//signed char trim_yr;
+//signed char trim_yl;
 
-int addr_trim_rr = 0;
-int addr_trim_rl = 1;
-int addr_trim_yr = 2;
-int addr_trim_yl = 3;
+signed char servoGroupLegsTrim[NUMBER_OF_SERVOGROUP_LEGS_SERVOS];
 
+//int addr_trim_rr = SERVO_RR;
+//int addr_trim_rl = SERVO_RL;
+//int addr_trim_yr = SERVO_YR;
+//int addr_trim_yl = SERVO_YR;
+
+
+//int addr_trim_rr = 0;
+//int addr_trim_rl = 1;
+//int addr_trim_yr = 2;
+//int addr_trim_yl = 3;
 
 
 /* Hardware interface mapping*/
@@ -326,8 +332,9 @@ void home(int delayms=0)
 	for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
 	{
 		Serial.println(i);
-		Log.notice(F("home: setting servoGroupLegs[%d] to 90" CR), i);
-		servosLegs[i].enhancedWrite(90,0,180);
+		Log.notice(F("home: setting servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(%d)->setServoAbsolutePosition(90)" CR), i);
+//		servosLegs[i].enhancedWrite(90,0,180);
+		servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)->setServoAbsolutePosition(90);
 
 	}
 	delay(delayms);
@@ -1256,17 +1263,23 @@ void home(int delayms=0)
 void servoAttach()
 {
     Log.notice(F("servoAttach start" CR));
-    DEBUG_SERIAL_NAME.println(trim_rr);
-    servosLegs[0].setTrim(trim_rr);
+//    DEBUG_SERIAL_NAME.println(trim_rr);
+//    servosLegs[0].setTrim(trim_rr);
+//
+//    DEBUG_SERIAL_NAME.println(trim_rl);
+//    servosLegs[1].setTrim(trim_rl);
+//
+//    DEBUG_SERIAL_NAME.println(trim_yr);
+//    servosLegs[2].setTrim(trim_yr);
+//
+//    DEBUG_SERIAL_NAME.println(trim_yl);
+//    servosLegs[3].setTrim(trim_yl);
 
-    DEBUG_SERIAL_NAME.println(trim_rl);
-    servosLegs[1].setTrim(trim_rl);
-
-    DEBUG_SERIAL_NAME.println(trim_yr);
-    servosLegs[2].setTrim(trim_yr);
-
-    DEBUG_SERIAL_NAME.println(trim_yl);
-    servosLegs[3].setTrim(trim_yl);
+    for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+    {
+    	servosLegs[i].setTrim(servoGroupLegsTrim[i]);
+    	Log.verbose(F("servoAttach: servosLegs[%d].setTrim=%d" CR), i, servoGroupLegsTrim[i]);
+    }
 
     servosLegs[0].attach(RR_PIN);
     servosLegs[1].attach(RL_PIN);
@@ -1320,46 +1333,103 @@ int getDistance()
 //    Test_voltageMeasure();// Realization of Voltage Detection
 //}
 
+
+/**
+ * returns the trim values which are saved in eeprom
+ */
+signed char getEEPROMTrim(unsigned char servo)
+{
+	unsigned char trimValue=0;
+	switch (servo)
+	{
+	case SERVO_YL:
+		trimValue = EEPROM.read((int) SERVO_YL);
+		break;
+
+	case SERVO_YR:
+		trimValue = EEPROM.read((int) SERVO_YR);
+		break;
+
+	case SERVO_RL:
+		trimValue = EEPROM.read((int) SERVO_RL);
+		break;
+
+	case SERVO_RR:
+		trimValue = EEPROM.read((int) SERVO_RR);
+		break;
+	}
+
+	// undo offset of 90 degrees or set to 0
+	if (trimValue == 255)
+	{
+		trimValue=0;
+	}
+	else
+	{
+		trimValue = trimValue - 90;
+	}
+
+//	Log.trace(F("getEEPROMTrim(%d) returning %d" CR), servo, trimValue);
+	return trimValue;
+
+}
+
+
+
 void servoInit()
 {
-	Log.notice(F("servoInit: reading trim from eeprom" CR));
-    if (EEPROM.read(addr_trim_rr) != 255)
-    {
-        trim_rr = EEPROM.read(addr_trim_rr) - 90;
-    }
-    else
-    {
-        trim_rr = 0;
-    }
+	Log.notice(F("servoInit: reading trim from EEPROM" CR));
+	for (unsigned int i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+	{
+		servoGroupLegsTrim[i] =  getEEPROMTrim(i);
+		Log.trace(F("servoGroupLegsTrim[%d] =  %d;" CR), i, servoGroupLegsTrim[i] );
+	}
 
-    if (EEPROM.read(addr_trim_rl) != 255)
-    {
-        trim_rl = EEPROM.read(addr_trim_rl) - 90;
-    }
-    else
-    {
-        trim_rl = 0;
-    }
 
-    if (EEPROM.read(addr_trim_yr) != 255)
-    {
-        trim_yr = EEPROM.read(addr_trim_yr) - 90;
-    }
-    else
-    {
-        trim_yr = 0;
-    }
+//    trim_rr = getEEPROMTrim(SERVO_RR);
+//    trim_rl = getEEPROMTrim(SERVO_RL);
+//    trim_yr = getEEPROMTrim(SERVO_YR);
+//    trim_yl = getEEPROMTrim(SERVO_YL);
 
-    if (EEPROM.read(addr_trim_yl) != 255)
-    {
-        trim_yl = EEPROM.read(addr_trim_yl) - 90;
-    }
-    else
-    {
-        trim_yl = 0;
-    }
+//	Log.trace(F("servoInit: SERVO_RL: %d, SERVO_RR: %d, SERVO_YL: %d, SERVO_YR: %d" CR), trim_rl, trim_rr, trim_yl, trim_yr );
+//
+//	if (EEPROM.read(addr_trim_rr) != 255)
+//    {
+//        trim_rr = EEPROM.read(addr_trim_rr) - 90;
+//    }
+//    else
+//    {
+//        trim_rr = 0;
+//    }
+//
+//    if (EEPROM.read(addr_trim_rl) != 255)
+//    {
+//        trim_rl = EEPROM.read(addr_trim_rl) - 90;
+//    }
+//    else
+//    {
+//        trim_rl = 0;
+//    }
+//
+//    if (EEPROM.read(addr_trim_yr) != 255)
+//    {
+//        trim_yr = EEPROM.read(addr_trim_yr) - 90;
+//    }
+//    else
+//    {
+//        trim_yr = 0;
+//    }
+//
+//    if (EEPROM.read(addr_trim_yl) != 255)
+//    {
+//        trim_yl = EEPROM.read(addr_trim_yl) - 90;
+//    }
+//    else
+//    {
+//        trim_yl = 0;
+//    }
 
-    Log.notice(F("servoInit: loaded trim: trim_rr=%d trim_rl=%d trim_yr=%d trim_yl=%d" CR), trim_rr, trim_rl, trim_yr, trim_yl );
+//    Log.notice(F("servoInit: loaded trim: trim_rr=%d trim_rl=%d trim_yr=%d trim_yl=%d" CR), trim_rr, trim_rl, trim_yr, trim_yl );
     Log.notice(F("servoInit: finished" CR));
 }
 
@@ -1466,15 +1536,15 @@ void setupServos()
 	Log.notice(F("setup servos..." CR));
 	for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
 	{
-		servosLegs[i].setMaxValue(130);
-		servosLegs[i].setMinValue(50);
+		servosLegs[i].setMaxValue(90+50);
+		servosLegs[i].setMinValue(90-50);
 		Log.error(" servos [%d], min %d max %d" CR, i, servosLegs[i].getMinValue(), servosLegs[i].getMaxValue());
 
 	}
 
 	servoInit();
 	servoAttach();
-	home(200);
+//	home(200);
 }
 
 
@@ -1574,7 +1644,7 @@ void setup()
     for (unsigned int i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
 	{
 		;
-		Log.error("keyframe[%d] is has value to %d" CR, i, keyframeAnimatorLegs[i].getKeyframeMode() );
+		Log.error("keyframeAnimator[%d] has keyframe value of %d" CR, i, keyframeAnimatorLegs[i].getKeyframeMode() );
 	}
 
     servoGroups[SERVO_GROUP_LEGS].init(keyframeAnimatorLegs, servosLegs, NUMBER_OF_SERVOGROUP_LEGS_SERVOS);
@@ -1607,6 +1677,7 @@ void setup()
 	}
 
 
+    home(200);
 
     //(ServoKeyframeAnimator) servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)
 
@@ -1619,7 +1690,13 @@ void setup()
     //Log.trace("adresses keyframeAnimatorLegs %d, keyframeAnimatorLegs[0]=%d keyframeAnimatorLegs[1]=%d, keyframeAnimatorLegs[2]=%d, keyframeAnimatorLegs[3]=%d" CR, &keyframeAnimatorLegs, &keyframeAnimatorLegs[0],&keyframeAnimatorLegs[1],&keyframeAnimatorLegs[2], &keyframeAnimatorLegs[3]);
     //Log.trace("adresses keyframemmode [0]=%d [1]=%d, [2]=%d, [3]=%d" CR, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(0).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(1).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(2).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(3).getKeyframeModeAddress());
 
-
+//    for (int i=0; i<4; i++)
+//	{
+//    	servoGroupLegsTrim[i]=0;
+//    	saveTrimValuesInEEPROM();
+//    }
+//
+//    delay (10000);
     Log.notice(F("setup done" CR));
 }
 
@@ -1845,8 +1922,16 @@ void loop()
 
 		bool highLevelControlPressed=false;
 
+		// store trim?
+		if (message[PROT_BTN_L1] && message[PROT_BTN_L2] && message[PROT_BTN_TRIANGLE])
+		{
+			updateTrimValuesFromCurrentPositions();
+			saveTrimValuesInEEPROM();
+
+		}
+
 		// control servos directly with thumbsticks
-		if (message[PROT_BTN_R2] > 0)
+		else if (message[PROT_BTN_R2] > 0)
 		{
 
 			controlServosDirectly();
@@ -1872,6 +1957,7 @@ void loop()
 				servoGroupLastMove[i] = MOVE_01_MANUAL;
 			}
 		}
+
 		else
 		{
 			// high level controls, no direct control via sticks
@@ -1977,8 +2063,8 @@ void loop()
 
 		}
 
-
-		Log.verbose("%d %d %d %d" CR, servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon(),servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon());
+//		Log.verbose("%d %d %d %d" CR, servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon());
+		Log.verbose("%d %d %d %d wT: %d %d %d %d , ServoTrim: %d %d %d %d, TrimArray: %d %d %d %d" CR, servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon(), servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon(),servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon(),          servoGroups[0].getServoKeyframeAnimator(0)->getServoCurrentPositon() + servoGroupLegsTrim[0], servoGroups[0].getServoKeyframeAnimator(1)->getServoCurrentPositon() + servoGroupLegsTrim[1], servoGroups[0].getServoKeyframeAnimator(2)->getServoCurrentPositon() + servoGroupLegsTrim[2], servoGroups[0].getServoKeyframeAnimator(3)->getServoCurrentPositon()  + servoGroupLegsTrim[3], servosLegs[0].getTrim(), servosLegs[1].getTrim(), servosLegs[2].getTrim(), servosLegs[3].getTrim(), servoGroupLegsTrim[0], servoGroupLegsTrim[1],servoGroupLegsTrim[2], servoGroupLegsTrim[3]);
 
 
 
@@ -2423,7 +2509,7 @@ void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int 
 			// check the continuation mode. Rewrite duration / time if it is set to ITERATION_CONTINUATION_MODE_ONCE_NO_WAIT
 			if (movesLegs4Servos.getContinuationMode(moveId) == ITERATION_CONTINUATION_MODE_ONCE_NO_WAIT )
 			{
-				Log.trace(F("XXXXXXXXXXXXXXX" CR));
+//				Log.trace(F("XXXXXXXXXXXXXXX" CR));
 				// check if target position for all servos is reached.
 				if (servoGroups[servoGroupId].isTargetPositionOfKeyframeReached())
 				{
@@ -2452,6 +2538,7 @@ void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int 
 		for (unsigned int i=0; i < servoGroups[servoGroupId].getNumberOfServos(); i++)
 		{
 			keyframeOnlyServos[i] = myKeyframe[i+1];
+
 			DEBUG_SERIAL_NAME.print(keyframeOnlyServos[i]);
 			DEBUG_SERIAL_NAME.print(" ");
 		}
@@ -2566,3 +2653,60 @@ void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int 
 //	//Log.trace(F("myMoveTest: move=%T i=%d d=%d"CR), keyframeServoGroupLegs.isInMove(),  servoGroupMoveIteration[servoGroupId], servoGroupMoveIterationDirection[servoGroupId] );
 //}
 
+/**
+ * this function stores the trim values in eeprom permanently.
+ * The trim value will only be written to EEPROM, if it differs.
+ */
+void saveTrimValuesInEEPROM()
+{
+	Log.trace(F("storeTrimValuesInEEPROM" CR));
+	for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+	{
+		Log.trace(F("eeprom=%d == servoGroupLegsTrim=%d ?" CR), getEEPROMTrim(i), servoGroupLegsTrim[i]);
+		if (getEEPROMTrim(i) != servoGroupLegsTrim[i])
+		{
+			Log.trace(F("save Servo Trim %d = %d (%d)" CR), i,servoGroupLegsTrim[i],  servoGroupLegsTrim[i] + 90 );
+			EEPROM.write((int) i, servoGroupLegsTrim[i] + 90);
+			Log.trace(F("verify Servo Trim %d = %d (%d) = %d" CR), i,servoGroupLegsTrim[i],  servoGroupLegsTrim[i] + 90, getEEPROMTrim(i) );
+		}
+	}
+//
+//
+//	if (getEEPROMTrim(SERVO_RL) != trim_rl)
+//	{
+//		Log.trace(F("save RL"));
+//		EEPROM.write((int) SERVO_RL, trim_rl + 90);
+//	}
+//	if (getEEPROMTrim(SERVO_RR) != trim_rr)
+//	{
+//		Log.trace(F("save RR"));
+//		EEPROM.write((int) SERVO_RR, trim_rr + 90);
+//	}
+//	if (getEEPROMTrim(SERVO_YL) != trim_yl)
+//	{
+//		Log.trace(F("save YL"));
+//		EEPROM.write((int) SERVO_YL, trim_yl + 90);
+//	}
+//	if (getEEPROMTrim(SERVO_YR) != trim_yr)
+//	{
+//		Log.trace(F("save YR"));
+//		EEPROM.write((int) SERVO_YR, trim_yr + 90);
+//	}
+
+}
+
+
+void updateTrimValuesFromCurrentPositions()
+{
+	for (unsigned char i=0; i< NUMBER_OF_SERVOGROUP_LEGS_SERVOS; i++)
+	{
+		Log.verbose(F("updateTrimValuesFromCurrentPositions: i=%d, servoPos=%d, oldtrimRAM=%d, oldTrimEEPROM=%d" CR) , i, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)->getServoCurrentPositon(), servoGroupLegsTrim[i], EEPROM.read((int) i -90));
+		servoGroupLegsTrim[i] = 90 - servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)->getServoCurrentPositon();
+		Log.verbose(F("updateTrimValuesFromCurrentPositions: set trim for servo[%d] to %d" CR), i, servoGroupLegsTrim[i]);
+		servosLegs[i].setTrim(servoGroupLegsTrim[i]);
+		servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(i)->setServoAbsolutePosition(90);
+		servoGroups[SERVO_GROUP_LEGS].driveServosToCalculatedPosition();
+	}
+
+
+}
