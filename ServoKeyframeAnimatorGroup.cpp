@@ -270,13 +270,14 @@ bool ServoKeyframeAnimatorGroup::isTargetPositionOfKeyframeReached()
 void ServoKeyframeAnimatorGroup::updateTargetToCurrent()
 {
 	_isInMove=false;
-//	Log.trace(F("ServoKeyframeAnimatorGroup::updateTargetToCurrent, _isInMove=%T"), _isInMove);
+	Log.trace(F("ServoKeyframeAnimatorGroup::updateTargetToCurrent, _isInMove=%T"), _isInMove);
 	for (unsigned char i=0; i< _numberOfServos; i++)
 	{
 		_keyframeAnimators[i].setServoPositionNextKeyframe(_keyframeAnimators[i].getServoCurrentPositon());
 		_keyframeAnimators[i].setServoPositionPreviousKeyframe(_keyframeAnimators[i].getServoCurrentPositon());
-//		Log.trace(F("[i]=%d setServoPositionNextKeyframe=%d"), i, _keyframeAnimators[i].getServoTargetPositon());
+		Log.trace(F("[i]=%d setServoPositionNextKeyframe=%d"), i, _keyframeAnimators[i].getServoTargetPositon());
 	}
-//	Log.trace(CR);
+	Log.trace(CR);
 
 }
+

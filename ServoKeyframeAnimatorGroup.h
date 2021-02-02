@@ -50,6 +50,8 @@ public:
 
 	void updateTargetToCurrent();
 
+
+
 private:
 	ServoKeyframeAnimator* 	_keyframeAnimators;
 	unsigned long 			_timePreviousKeyframe;
