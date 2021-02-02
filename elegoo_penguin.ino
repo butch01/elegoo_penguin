@@ -47,7 +47,7 @@ unsigned char servoGroupLastMove[NUMBER_OF_SERVOGROUPS];
 bool isCurrentlyUpdatingTrim = false;
 bool isKeepServosLastPositions = true; // says if Servos should return to center (false) or if servos should stay in their last position (true)
 
-//Relay *relays[RELAY_ARRAY_SIZE] = { &myRelay };
+
 
 
 RobotMoves01 movesLegs4Servos;
@@ -188,7 +188,7 @@ FastCRC8 CRC8;
 #define AUDIO_SOFTWARE_RX A2 //Software implementation of serial interface (audio module driver interface)
 #define AUDIO_SOFTWARE_TX A3
 NeoSWSerial mp3Serial(AUDIO_SOFTWARE_RX, AUDIO_SOFTWARE_TX);
-MY1690_16S mp3Player( &mp3Serial);
+MY1690_16S mp3( &mp3Serial);
 
 
 
@@ -1536,8 +1536,15 @@ void setupBLEHM10()
 void setup()
 {
 
+	// init mp3-player
+	mp3Serial.begin(9600);
+	mp3.init(HT6871_PIN);
+
 
 	DEBUG_SERIAL_NAME.begin(DEBUG_SERIAL_BAUD);
+
+
+
     bleSerial.begin(BLE_SERIAL_BAUD);
     bleSerial.listen();
 
@@ -1652,7 +1659,14 @@ void setup()
 //    }
 //
 //    delay (10000);
+
+    //bleSerial.end();
+    mp3Serial.listen();
+    mp3.playSong(10, 10);
+//    bleSerial.begin(BLE_SERIAL_BAUD);
+    bleSerial.listen();
     Log.notice(F("setup done" CR));
+
 }
 
 /*
