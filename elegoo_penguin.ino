@@ -13,7 +13,7 @@
 #include "MY1690_16S.h"
 #include "RobotMoves01.h"
 #include "moveConstants.h"
-
+#include "soundConstants.h"
 
 unsigned long packageNumber=0;
 
@@ -1660,11 +1660,8 @@ void setup()
 //
 //    delay (10000);
 
-    //bleSerial.end();
-    mp3Serial.listen();
-    mp3.playSong(10, 10);
-//    bleSerial.begin(BLE_SERIAL_BAUD);
-    bleSerial.listen();
+    wrapperPlayMp3(SOUND_TITLE_ENABLED, SOUND_DEFAULT_VOLUME, false);
+    //wrapperPlayMp3(10, 10);
     Log.notice(F("setup done" CR));
 
 }
@@ -2690,5 +2687,20 @@ void updateTrimValuesFromCurrentPositions()
 		servoGroups[SERVO_GROUP_LEGS].driveServosToCalculatedPosition();
 	}
 
+
+}
+
+void wrapperPlayMp3(int title, unsigned char volume, bool stopCurrentPlay)
+{
+    mp3Serial.listen();
+
+    // stop the play if it is set.
+    // currently no status checking. Don't know if needed.
+    if (stopCurrentPlay)
+    {
+    	mp3.stopPlay();
+    }
+    mp3.playSong(title, volume);
+    BLE_SERIAL_NAME.listen();
 
 }
