@@ -13,7 +13,7 @@
 #include "MY1690_16S.h"
 #include "RobotMoves01.h"
 #include "moveConstants.h"
-
+#include "soundConstants.h"
 
 unsigned long packageNumber=0;
 
@@ -47,7 +47,7 @@ unsigned char servoGroupLastMove[NUMBER_OF_SERVOGROUPS];
 bool isCurrentlyUpdatingTrim = false;
 bool isKeepServosLastPositions = true; // says if Servos should return to center (false) or if servos should stay in their last position (true)
 
-//Relay *relays[RELAY_ARRAY_SIZE] = { &myRelay };
+
 
 
 RobotMoves01 movesLegs4Servos;
@@ -188,7 +188,7 @@ FastCRC8 CRC8;
 #define AUDIO_SOFTWARE_RX A2 //Software implementation of serial interface (audio module driver interface)
 #define AUDIO_SOFTWARE_TX A3
 NeoSWSerial mp3Serial(AUDIO_SOFTWARE_RX, AUDIO_SOFTWARE_TX);
-MY1690_16S mp3Player( &mp3Serial);
+MY1690_16S mp3( &mp3Serial);
 
 
 
@@ -1536,8 +1536,15 @@ void setupBLEHM10()
 void setup()
 {
 
+	// init mp3-player
+	mp3Serial.begin(9600);
+	mp3.init(HT6871_PIN);
+
 
 	DEBUG_SERIAL_NAME.begin(DEBUG_SERIAL_BAUD);
+
+
+
     bleSerial.begin(BLE_SERIAL_BAUD);
     bleSerial.listen();
 
@@ -1652,7 +1659,11 @@ void setup()
 //    }
 //
 //    delay (10000);
+
+    wrapperPlayMp3(SOUND_TITLE_ENABLED, SOUND_DEFAULT_VOLUME, false);
+    //wrapperPlayMp3(10, 10);
     Log.notice(F("setup done" CR));
+
 }
 
 /*
@@ -2676,5 +2687,20 @@ void updateTrimValuesFromCurrentPositions()
 		servoGroups[SERVO_GROUP_LEGS].driveServosToCalculatedPosition();
 	}
 
+
+}
+
+void wrapperPlayMp3(int title, unsigned char volume, bool stopCurrentPlay)
+{
+    mp3Serial.listen();
+
+    // stop the play if it is set.
+    // currently no status checking. Don't know if needed.
+    if (stopCurrentPlay)
+    {
+    	mp3.stopPlay();
+    }
+    mp3.playSong(title, volume);
+    BLE_SERIAL_NAME.listen();
 
 }

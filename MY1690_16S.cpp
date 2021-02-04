@@ -12,6 +12,7 @@
 MY1690_16S::MY1690_16S (NeoSWSerial *mp3Serial)
 {
 	_mp3Serial= mp3Serial;
+	volume = 10;
 }
 
 MY1690_16S::~MY1690_16S()
