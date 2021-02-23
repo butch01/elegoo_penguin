@@ -19,7 +19,7 @@ unsigned long packageNumber=0;
 
 // 0 normal run
 // 1 test, deactivate ble processing, just running test samples
-#define RUNMODE 0
+#define RUNMODE 1
 // vars for test mode
 
 
@@ -48,8 +48,6 @@ bool isCurrentlyUpdatingTrim = false;
 bool isKeepServosLastPositions = true; // says if Servos should return to center (false) or if servos should stay in their last position (true)
 
 
-
-
 RobotMoves01 movesLegs4Servos;
 
 
@@ -57,6 +55,7 @@ signed char servoGroupMoveIteration[NUMBER_OF_SERVOGROUPS];
 signed char servoGroupMoveIterationDirection[NUMBER_OF_SERVOGROUPS];
 bool isCenter=false;
 
+unsigned char lastMove=0;
 
 
 /* Serial Bluetooth Communication Control Command Data Frame*/
@@ -109,26 +108,6 @@ RR 0==^   -----   ------  v== RL 1
 #define SERVO_RL 1
 #define SERVO_YR 2
 #define SERVO_YL 3
-
-/* fine-tuning temporary storage variables*/
-//signed char trim_rr;
-//signed char trim_rl;
-//signed char trim_yr;
-//signed char trim_yl;
-
-//signed char servoGroupLegsTrim[NUMBER_OF_SERVOGROUP_LEGS_SERVOS];
-
-//int addr_trim_rr = SERVO_RR;
-//int addr_trim_rl = SERVO_RL;
-//int addr_trim_yr = SERVO_YR;
-//int addr_trim_yl = SERVO_YR;
-
-
-//int addr_trim_rr = 0;
-//int addr_trim_rl = 1;
-//int addr_trim_yr = 2;
-//int addr_trim_yl = 3;
-
 
 /* Hardware interface mapping*/
 
@@ -228,9 +207,10 @@ unsigned long infraredMeasureTime;
 unsigned char LED_value = 255;
 
 char danceNum = 0;
-double distance_value = 0;
-int st188Val_L;
-int st188Val_R;
+
+//int distanceUltrasonic = 0;
+//int st188Val_L;
+//int st188Val_R;
 long int ST188Threshold;
 long int ST188RightDataMin;
 long int ST188LeftDataMin;
@@ -239,16 +219,28 @@ int UltraThresholdMax = 20;
 //Oscillator servo[4];
 
 
-enum MODE
-{
-    IDLE,
-    BLUETOOTH,
-    OBSTACLE,
-    FOLLOW,
-    MUSIC,
-    DANCE,
-    VOLUME
-} mode = IDLE; // Right Domain Key of Hand-Tour APP Control Interface
+#define ULRTASONIC_TIMEOUT 20000
+#define ULTRASONIC_DISTANCE_MAX 200
+#define DISTANCE_SENSOR_VALUE_ARRAY_SIZE 5
+#define IR_MIN_DISTANCE 7
+unsigned int distanceUltrasonic[DISTANCE_SENSOR_VALUE_ARRAY_SIZE];
+unsigned int distanceIRLeft[DISTANCE_SENSOR_VALUE_ARRAY_SIZE];
+unsigned int distanceIRRight[DISTANCE_SENSOR_VALUE_ARRAY_SIZE];
+
+
+
+
+
+//enum MODE
+//{
+//    IDLE,
+//    BLUETOOTH,
+//    OBSTACLE,
+//    FOLLOW,
+//    MUSIC,
+//    DANCE,
+//    VOLUME
+//} mode = IDLE; // Right Domain Key of Hand-Tour APP Control Interface
 
 enum BTMODE
 {
@@ -1262,7 +1254,7 @@ void home(int delayms=0)
 
 void servoAttach()
 {
-    Log.notice(F("servoAttach start" CR));
+//    Log.notice(F("servoAttach start" CR));
 //    DEBUG_SERIAL_NAME.println(trim_rr);
 //    servosLegs[0].setTrim(trim_rr);
 //
@@ -1285,7 +1277,7 @@ void servoAttach()
     servosLegs[1].attach(RL_PIN);
     servosLegs[2].attach(YR_PIN);
     servosLegs[3].attach(YL_PIN);
-    Log.notice(F("servoAttach end" CR));
+//    Log.notice(F("servoAttach end" CR));
 }
 
 void servoDetach()
@@ -1305,6 +1297,148 @@ int getDistance()
     delayMicroseconds(10);
     digitalWrite(TRIG_PIN, LOW);
     return (int)pulseIn(ECHO_PIN, HIGH) / 58;
+}
+
+
+
+unsigned int getDistanceFilterAverage(unsigned int* array)
+{
+	unsigned int avg=0;
+	for (unsigned int i=0; i< DISTANCE_SENSOR_VALUE_ARRAY_SIZE; i++)
+	{
+		avg = avg +  array[i];
+	}
+	return avg /DISTANCE_SENSOR_VALUE_ARRAY_SIZE ;
+}
+
+
+/**
+ * mapps the IR sensor to centimeters. range is 1 - 15
+ */
+unsigned char mapIRSensorToCentimeter(unsigned int sensorValue)
+{
+	unsigned char mappedValue=0;
+
+	if (sensorValue > 993 )
+	{
+		mappedValue = 1;
+	}
+	else if (sensorValue > 980 )
+	{
+		mappedValue = 2;
+	}
+	else if (sensorValue > 520 )
+	{
+		mappedValue = 3;
+	}
+	else if (sensorValue > 283 )
+	{
+		mappedValue = 4;
+	}
+	else if (sensorValue > 199 )
+	{
+		mappedValue = 5;
+	}
+	else if (sensorValue > 140)
+	{
+		mappedValue = 6;
+	}
+	else if (sensorValue > 105)
+	{
+		mappedValue = 7;
+	}
+	else if (sensorValue > 90)
+	{
+		mappedValue = 8;
+	}
+	else if (sensorValue > 83)
+	{
+		mappedValue = 9;
+	}
+	else if (sensorValue > 65)
+	{
+		mappedValue = 10;
+	}
+	else if (sensorValue > 56)
+	{
+		mappedValue = 11;
+	}
+	else if (sensorValue > 45 )
+	{
+		mappedValue = 12;
+	}
+	else if (sensorValue > 38)
+	{
+		mappedValue = 13;
+	}
+	else if (sensorValue > 33 )
+	{
+		mappedValue = 14;
+	}
+	else
+	{
+		mappedValue = 15;
+	}
+
+	return mappedValue;
+}
+
+
+
+void updateDistanceFilterArrays()
+{
+
+	long duration;
+	int distance;
+	unsigned char start=0;
+
+	if (DISTANCE_SENSOR_VALUE_ARRAY_SIZE > 1)
+	{
+		unsigned int avgLeft=0;
+		unsigned int avgCenter=0;
+		unsigned int avgRight=0;
+
+		// calculate the average of all values to first element
+		for (unsigned int i=0; i< DISTANCE_SENSOR_VALUE_ARRAY_SIZE; i++)
+		{
+			avgLeft=avgLeft+distanceIRLeft[i];
+			avgCenter=avgCenter+distanceUltrasonic[i];
+			avgRight=avgRight+distanceIRRight[i];
+		}
+		// save avg to first element
+		distanceIRLeft[0]=avgLeft / DISTANCE_SENSOR_VALUE_ARRAY_SIZE;
+		distanceUltrasonic[0]=avgCenter / DISTANCE_SENSOR_VALUE_ARRAY_SIZE;
+		distanceIRRight[0]=avgRight / DISTANCE_SENSOR_VALUE_ARRAY_SIZE ;
+		start=1;
+	}
+	else
+	{
+		start = 0;
+	}
+
+	// now update all but the first element
+	for (unsigned i=start; i< DISTANCE_SENSOR_VALUE_ARRAY_SIZE; i++)
+	{
+
+		// Clears the trigPin
+		digitalWrite(TRIG_PIN, LOW);
+		delayMicroseconds(2);
+		// Sets the trigPin on HIGH state for 10 micro seconds
+		digitalWrite(TRIG_PIN, HIGH);
+		delayMicroseconds(10);
+		digitalWrite(TRIG_PIN, LOW);
+		// Reads the echoPin, returns the sound wave travel time in microseconds
+		duration = pulseIn(ECHO_PIN, HIGH, ULRTASONIC_TIMEOUT);
+
+		// Calculating the distance in cm
+		distanceUltrasonic[i]= duration*0.034/2;
+		if (distanceUltrasonic[i] == 0 || distanceUltrasonic[i]  > ULTRASONIC_DISTANCE_MAX)
+		{
+			distanceUltrasonic[i] = ULTRASONIC_DISTANCE_MAX;
+		}
+		distanceIRLeft[i]=mapIRSensorToCentimeter(analogRead(ST188_L_PIN));
+		distanceIRRight[i]=mapIRSensorToCentimeter(analogRead(ST188_R_PIN));
+	}
 }
 //
 ///* Control command acquisition implementation*/
@@ -1480,6 +1614,14 @@ void setupDefaultValues()
 		servoGroupMoveIterationDirection[i] = 1;  // may be 1 (forward) or -1 (reverse) or 0 (stop)
 		servoGroupLastMove[i]=0;
 	}
+
+	for (unsigned char i=0; i< DISTANCE_SENSOR_VALUE_ARRAY_SIZE; i++)
+	{
+		distanceUltrasonic[i]=0;
+		distanceIRLeft[i]=0;
+		distanceIRRight[i]=0;
+	}
+
 }
 
 
@@ -1553,6 +1695,11 @@ void setup()
 
     Log.notice(F("starting\n"));
 
+    pinMode(ECHO_PIN, INPUT);
+    pinMode(TRIG_PIN, OUTPUT);
+
+
+    //Log.notice(F("Distance %d" CR), myGetDistance());
 
 //     ServoKeyframeAnimator test;
 //    delay (10000);
@@ -1572,8 +1719,7 @@ void setup()
 
  //   keyframeServoGroupLegs = new ServoKeyframeAnimatorGroup(4);
 //    mp3Serial.begin(9600);
-//    pinMode(ECHO_PIN, INPUT);
-//    pinMode(TRIG_PIN, OUTPUT);
+
 //    pinMode(INDICATOR_LED_PIN, OUTPUT);
 //    pinMode(VOLTAGE_MEASURE_PIN, INPUT);
 //
@@ -1805,6 +1951,15 @@ void controlServosByIncrement()
 
 void loop()
 {
+	updateDistanceFilterArrays();
+
+	//Log.notice("L=%d C=%d R=%d" CR, getDistanceFilterAverage(distanceIRLeft), getDistanceFilterAverage(distanceUltrasonic), getDistanceFilterAverage(distanceIRRight));
+	printDistanceFilterAverage();
+	printCurrentServoPositions();
+	DEBUG_SERIAL_NAME.print("inMove: ");
+	DEBUG_SERIAL_NAME.print(servoGroups[SERVO_GROUP_LEGS].isInMove());
+	DEBUG_SERIAL_NAME.print("\n");
+
 //	DEBUG_SERIAL_NAME.println("%");
 	Test_voltageMeasure();
 
@@ -1819,7 +1974,9 @@ void loop()
 //	{
 		//myMoveTest(SERVO_GROUP_LEGS, 10);
 		//genericMove(MOVE_01_TEST, SERVO_GROUP_LEGS, 10);
-	genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 10);
+
+	//genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 10);
+	myObstacleMode();
 
 //
 //	}
@@ -2472,7 +2629,7 @@ void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int 
 
 		// increase the iteration if we will stay in bounds. otherwise recycle from beginning
 		//calculateMoveIterationId( ITERATION_MODE_LOOP, 4, servoGroupMoveIteration[servoGroupId], servoGroupMoveIterationDirection[servoGroupId]);
-		calculateMoveIterationId( movesLegs4Servos.getContinuationMode(moveId),movesLegs4Servos.getNumberOfIterations(moveId) , servoGroupMoveIteration[servoGroupId], servoGroupMoveIterationDirection[servoGroupId]);
+		calculateMoveIterationId( movesLegs4Servos.getContinuationMode(moveId), movesLegs4Servos.getNumberOfIterations(moveId), servoGroupMoveIteration[servoGroupId], servoGroupMoveIterationDirection[servoGroupId]);
 
 		// now copy the keyframe of move for the calculated iteration to mykeyframe
 		unsigned char myKeyframe[NUMBER_OF_SERVOGROUP_LEGS_SERVOS +1];
@@ -2551,6 +2708,7 @@ void genericMove(unsigned char moveId, unsigned char servoGroupId, unsigned int 
 		servoGroups[servoGroupId].driveServosToCalculatedPosition();
 //		Log.trace("adresses keyframemmode [0]=%d [1]=%d, [2]=%d, [3]=%d" CR, servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(0).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(1).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(2).getKeyframeModeAddress(), servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(3).getKeyframeModeAddress());
 //	}
+	lastMove=moveId;
 
 }
 //
@@ -2703,4 +2861,82 @@ void wrapperPlayMp3(int title, unsigned char volume, bool stopCurrentPlay)
     mp3.playSong(title, volume);
     BLE_SERIAL_NAME.listen();
 
+}
+
+
+void myObstacleMode()
+{
+
+	unsigned char move = servoGroupLastMove[SERVO_GROUP_LEGS];
+	unsigned char speed = 20;
+	// if we are not in a move
+	if (! servoGroups[SERVO_GROUP_LEGS].isInMove())
+	{
+
+		// do only if not in move
+
+
+
+		unsigned int avgDistanceCenter=getDistanceFilterAverage(distanceUltrasonic);
+		unsigned int avgDistanceLeft=getDistanceFilterAverage(distanceIRLeft);
+		unsigned int avgDistanceRight=getDistanceFilterAverage(distanceIRRight);
+
+		if (avgDistanceCenter > 15)
+		{
+			move=MOVE_01_WALKFORWARD;
+			genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 20);
+		}
+		else if (avgDistanceLeft < IR_MIN_DISTANCE && avgDistanceLeft < avgDistanceRight)
+		{
+			move=MOVE_01_TURN_RIGHT;
+			genericMove(MOVE_01_TURN_RIGHT, SERVO_GROUP_LEGS, 20);
+		}
+		else if (avgDistanceRight < IR_MIN_DISTANCE)
+		{
+			move=MOVE_01_TURN_LEFT;
+			genericMove(MOVE_01_TURN_LEFT, SERVO_GROUP_LEGS, 20);
+		}
+		else
+		{
+			move=MOVE_01_WALKTBACKWARDS;
+
+		}
+
+	}
+
+	// do the move
+	genericMove(move, SERVO_GROUP_LEGS, speed);
+	// remember last move
+	servoGroupLastMove[SERVO_GROUP_LEGS] = move;
+
+
+}
+
+void printDistanceFilterAverage()
+{
+	DEBUG_SERIAL_NAME.print("D: ");
+	DEBUG_SERIAL_NAME.print(getDistanceFilterAverage(distanceIRLeft));
+	DEBUG_SERIAL_NAME.print(" ");
+	DEBUG_SERIAL_NAME.print(getDistanceFilterAverage(distanceUltrasonic));
+	DEBUG_SERIAL_NAME.print(" ");
+	DEBUG_SERIAL_NAME.print(getDistanceFilterAverage(distanceIRRight));
+	DEBUG_SERIAL_NAME.print(" ");
+
+}
+
+void printCurrentServoPositions()
+{
+	for (unsigned char servoGroupId = 0; servoGroupId < NUMBER_OF_SERVOGROUPS; servoGroupId++)
+	{
+		DEBUG_SERIAL_NAME.print("SG ");
+		DEBUG_SERIAL_NAME.print(servoGroupId);
+		DEBUG_SERIAL_NAME.print(": ");
+
+		for (unsigned char servoId=0;  servoId < NUMBER_OF_SERVOGROUP_LEGS_SERVOS; servoId++)
+		{
+			DEBUG_SERIAL_NAME.print(servoGroups[servoGroupId].getServoKeyframeAnimator(servoId)->getServoCurrentPositon());
+			DEBUG_SERIAL_NAME.print(" ");
+		}
+
+	}
 }
