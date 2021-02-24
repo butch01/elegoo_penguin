@@ -19,7 +19,7 @@ unsigned long packageNumber=0;
 
 // 0 normal run
 // 1 test, deactivate ble processing, just running test samples
-#define RUNMODE 1
+#define RUNMODE 0
 // vars for test mode
 
 
@@ -222,7 +222,18 @@ int UltraThresholdMax = 20;
 #define ULRTASONIC_TIMEOUT 20000
 #define ULTRASONIC_DISTANCE_MAX 200
 #define DISTANCE_SENSOR_VALUE_ARRAY_SIZE 5
-#define IR_MIN_DISTANCE 7
+#define DISTANCE_IR_STOP 5
+#define DISTANCE_IR_START 5
+#define DISTANCE_ULTRASONIC_START 13
+#define DISTANCE_ULTRASONIC_STOP 8
+
+
+#define SERVO_RL_IR_ANGLE_LIMIT 0
+#define SERVO_YL_IR_ANGLE_LIMIT 0
+#define SERVO_RR_IR_ANGLE_LIMIT 0
+#define SERVO_YR_IR_ANGLE_LIMIT 0
+
+
 unsigned int distanceUltrasonic[DISTANCE_SENSOR_VALUE_ARRAY_SIZE];
 unsigned int distanceIRLeft[DISTANCE_SENSOR_VALUE_ARRAY_SIZE];
 unsigned int distanceIRRight[DISTANCE_SENSOR_VALUE_ARRAY_SIZE];
@@ -1273,6 +1284,7 @@ void servoAttach()
 //    	Log.verbose(F("servoAttach: servosLegs[%d].setTrim=%d" CR), i, servoGroupLegsTrim[i]);
 //    }
 
+
     servosLegs[0].attach(RR_PIN);
     servosLegs[1].attach(RL_PIN);
     servosLegs[2].attach(YR_PIN);
@@ -2006,7 +2018,7 @@ void loop()
 	#if RUNMODE == 0
 
 
-
+//	Log.trace("BLE_SERIAL_NAME.available %d" CR, BLE_SERIAL_NAME.available());
 	// hopefully only the last package stays if more than 1 is in buffer
 	while  (BLE_SERIAL_NAME.available() > 0)
 	{
@@ -2025,22 +2037,22 @@ void loop()
 	{
 
 		serial_flag=false;
-//		DEBUG_SERIAL_NAME.print(message[PROT_STICK_LX]);
-//		DEBUG_SERIAL_NAME.print(" ");
-//		DEBUG_SERIAL_NAME.print(message[PROT_STICK_LY]);
-//		DEBUG_SERIAL_NAME.print(" ");
-//		DEBUG_SERIAL_NAME.print(message[PROT_STICK_RX]);
-//		DEBUG_SERIAL_NAME.print(" ");
-//		DEBUG_SERIAL_NAME.print(message[PROT_STICK_RY]);
-//		DEBUG_SERIAL_NAME.print(" T:");
-//		DEBUG_SERIAL_NAME.print(message[PROT_BTN_TRIANGLE]);
-//		DEBUG_SERIAL_NAME.print(" X:");
-//		DEBUG_SERIAL_NAME.print(message[PROT_BTN_CROSS]);
-//		DEBUG_SERIAL_NAME.print(" S:");
-//		DEBUG_SERIAL_NAME.print(message[PROT_BTN_SQUARE]);
-//		DEBUG_SERIAL_NAME.print(" O:");
-//		DEBUG_SERIAL_NAME.print(message[PROT_BTN_CIRCLE]);
-//		DEBUG_SERIAL_NAME.print("\n");
+		DEBUG_SERIAL_NAME.print(message[PROT_STICK_LX]);
+		DEBUG_SERIAL_NAME.print(" ");
+		DEBUG_SERIAL_NAME.print(message[PROT_STICK_LY]);
+		DEBUG_SERIAL_NAME.print(" ");
+		DEBUG_SERIAL_NAME.print(message[PROT_STICK_RX]);
+		DEBUG_SERIAL_NAME.print(" ");
+		DEBUG_SERIAL_NAME.print(message[PROT_STICK_RY]);
+		DEBUG_SERIAL_NAME.print(" T:");
+		DEBUG_SERIAL_NAME.print(message[PROT_BTN_TRIANGLE]);
+		DEBUG_SERIAL_NAME.print(" X:");
+		DEBUG_SERIAL_NAME.print(message[PROT_BTN_CROSS]);
+		DEBUG_SERIAL_NAME.print(" S:");
+		DEBUG_SERIAL_NAME.print(message[PROT_BTN_SQUARE]);
+		DEBUG_SERIAL_NAME.print(" O:");
+		DEBUG_SERIAL_NAME.print(message[PROT_BTN_CIRCLE]);
+		DEBUG_SERIAL_NAME.print("\n");
 
 
 		bool highLevelControlPressed=false;
@@ -2863,35 +2875,132 @@ void wrapperPlayMp3(int title, unsigned char volume, bool stopCurrentPlay)
 
 }
 
+#define SOUND_EVENT_NONE 0 // no sound
+#define SOUND_EVENT_MIN_DISTANCE_REACHED 1
+
+void playSoundEvent(unsigned int eventId)
+{
+	// not implemented yet
+}
+
+
+bool isNeedToCheckIRDistanceLeft()
+{
+	if (servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(SERVO_RL)->getServoTargetPositon() > 90 + SERVO_RL_IR_ANGLE_LIMIT
+			&& servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(SERVO_YL)->getServoTargetPositon() > 90 + SERVO_YL_IR_ANGLE_LIMIT)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool isNeedToCheckIRDistanceRight()
+{
+	if (servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(SERVO_RR)->getServoTargetPositon() > 90 + SERVO_RR_IR_ANGLE_LIMIT
+			&& servoGroups[SERVO_GROUP_LEGS].getServoKeyframeAnimator(SERVO_YR)->getServoTargetPositon() > 90 + SERVO_YR_IR_ANGLE_LIMIT)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
 
 void myObstacleMode()
 {
 
 	unsigned char move = servoGroupLastMove[SERVO_GROUP_LEGS];
 	unsigned char speed = 20;
-	// if we are not in a move
+	unsigned int sound = SOUND_EVENT_NONE;
+	// if we are not in a move -> means we are at a keyframe
 	if (! servoGroups[SERVO_GROUP_LEGS].isInMove())
 	{
-
-		// do only if not in move
-
-
-
 		unsigned int avgDistanceCenter=getDistanceFilterAverage(distanceUltrasonic);
 		unsigned int avgDistanceLeft=getDistanceFilterAverage(distanceIRLeft);
 		unsigned int avgDistanceRight=getDistanceFilterAverage(distanceIRRight);
+
+		// todo: need to count steps
+
+		if (move == MOVE_01_WALKFORWARD)
+		{
+
+			bool isToStop=false;
+			// currently moving forward. ultrasonic sensor in all cases / all keyframes
+			if (avgDistanceCenter < DISTANCE_ULTRASONIC_STOP)
+			{
+				// stop. return to center
+				isToStop = true;
+			}
+
+			// check the space to the sides. But must only check if robot is not tilted too much because IR may measure the distance to the ground.
+			// check left sensor if angle is not too steep.
+			if (isNeedToCheckIRDistanceLeft && avgDistanceLeft < DISTANCE_IR_STOP)
+			{
+				 isToStop = true;
+			}
+
+			// check right sensor if angle is not too steep.
+			if ( isNeedToCheckIRDistanceRight || avgDistanceRight < DISTANCE_IR_STOP)
+			{
+				 isToStop = true;
+			}
+
+			// stop / center if to close to obstacles
+			if (isToStop)
+			{
+				move=MOVE_01_CENTER;
+				sound=SOUND_EVENT_MIN_DISTANCE_REACHED;
+			}
+
+		}
+		else if (move == MOVE_01_CENTER)
+		{
+			// MOVE_01_CENTER has only one keyframe, so no need to check in which iteration we are
+
+			// decide in which direction to go. Take the direction with higher distance
+			if (avgDistanceLeft > DISTANCE_IR_START && avgDistanceLeft > avgDistanceRight)
+			{
+				// more room to the left
+				move = MOVE_01_TURN_LEFT;
+			}
+			else if  (avgDistanceRight > DISTANCE_IR_START && avgDistanceRight > avgDistanceLeft )
+			{
+				// more room to the right
+				move = MOVE_01_TURN_RIGHT;
+			}
+			else if (avgDistanceCenter > DISTANCE_ULTRASONIC_START || avgDistanceLeft > DISTANCE_IR_START || avgDistanceRight > DISTANCE_IR_START)
+			{
+				// enough space in all direction. we can savely move forward
+				move = MOVE_01_WALKFORWARD;
+
+			}
+			else
+			{
+				// not enough space to front, left, right -> move backwards
+				move = MOVE_01_WALKTBACKWARDS;
+			}
+
+		}
+
+
+
+
 
 		if (avgDistanceCenter > 15)
 		{
 			move=MOVE_01_WALKFORWARD;
 			genericMove(MOVE_01_WALKFORWARD, SERVO_GROUP_LEGS, 20);
 		}
-		else if (avgDistanceLeft < IR_MIN_DISTANCE && avgDistanceLeft < avgDistanceRight)
+		else if (avgDistanceLeft < DISTANCE_IR_STOP && avgDistanceLeft < avgDistanceRight)
 		{
 			move=MOVE_01_TURN_RIGHT;
 			genericMove(MOVE_01_TURN_RIGHT, SERVO_GROUP_LEGS, 20);
 		}
-		else if (avgDistanceRight < IR_MIN_DISTANCE)
+		else if (avgDistanceRight < DISTANCE_IR_STOP)
 		{
 			move=MOVE_01_TURN_LEFT;
 			genericMove(MOVE_01_TURN_LEFT, SERVO_GROUP_LEGS, 20);
