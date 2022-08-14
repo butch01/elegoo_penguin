@@ -187,7 +187,7 @@ FastCRC8 CRC8;
 
 #define AUDIO_SOFTWARE_RX A2 //Software implementation of serial interface (audio module driver interface)
 #define AUDIO_SOFTWARE_TX A3
-NeoSWSerial mp3Serial(AUDIO_SOFTWARE_RX, AUDIO_SOFTWARE_TX);
+NeoSWSerial mp3Serial((unsigned char) AUDIO_SOFTWARE_RX, (unsigned char) AUDIO_SOFTWARE_TX);
 MY1690_16S mp3( &mp3Serial);
 
 
@@ -1678,7 +1678,7 @@ void Test_voltageMeasure(void) //Realization of Voltage Detection
     static boolean is_flag = true;
     if (millis() - voltageMeasureTime > 10000)
     {
-        double volMeasure = analogRead(VOLTAGE_MEASURE_PIN) * 4.97 / 1023;
+        double volMeasure = analogRead((unsigned char) VOLTAGE_MEASURE_PIN) * 4.97 / 1023;
         //Log.warning(F("Battery voltage: %F"CR), volMeasure);
         //Serial.println(volMeasure)
 
@@ -1696,19 +1696,19 @@ void Test_voltageMeasure(void) //Realization of Voltage Detection
 
     if (voltageMeasure_flag)
     {
-        digitalWrite(INDICATOR_LED_PIN, HIGH);
+        digitalWrite((unsigned char) INDICATOR_LED_PIN, HIGH);
     }
     else
     {
         if (is_flag)
         {
             is_flag = false;
-            digitalWrite(INDICATOR_LED_PIN, HIGH);
+            digitalWrite((unsigned char) INDICATOR_LED_PIN, HIGH);
         }
         else
         {
             is_flag = true;
-            digitalWrite(INDICATOR_LED_PIN, LOW);
+            digitalWrite((unsigned char) INDICATOR_LED_PIN, LOW);
         }
     }
 }
